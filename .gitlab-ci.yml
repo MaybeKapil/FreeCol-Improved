@@ -16,7 +16,7 @@ build_job:
 
   script: 
     - echo "ant compile started"
-    - ant compile
+    - ant -f cosc442-freecol-final-project/FreeCol-master/build.xml compile
 
 
 test_job:
@@ -26,4 +26,4 @@ test_job:
 
   script: 
     - echo "ant test started"
-    - ant testall
+    - ant -f cosc442-freecol-final-project/FreeCol-master/build.xml testall
