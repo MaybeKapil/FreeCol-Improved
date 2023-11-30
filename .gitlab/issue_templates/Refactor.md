@@ -1,6 +1,6 @@
 Refactor: Refactor the [method name] in [file name]
 
-The Cyclomatic complexity of getTurnsToComplete() is 10. 
+The Cyclomatic complexity of [method name] is [Cyclomatic complexity number]. 
 
 Changes to make to [method name]:
 - Reduce the Cyclomatic complexity
