@@ -16,6 +16,7 @@ build_job:
 
   script: 
     - echo "ant compile started"
+    - ant compile
 
 
 test_job:
@@ -25,3 +26,4 @@ test_job:
 
   script: 
     - echo "ant test started"
+    - ant testall
