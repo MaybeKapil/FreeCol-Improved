@@ -1,19 +1,13 @@
-variables:
-  MAVEN_OPTS: -Dmaven.repo.local=.m2/repository
+image: openjdk:latest
 
-image: maven:latest
+before_script:
+  - apt-get update -qy
+  - apt-get install -y ant
 
 stages:
     - build
     - test
-    - package
-    - deploy
 
-
-cache:
-  paths:
-    - .m2/repository
-    - target
 
 build_job:
   stage: build
@@ -22,7 +16,7 @@ build_job:
 
   script: 
     - echo "Maven compile started"
-    - "mvn compile"
+    - ant compile
 
 
 test_job:
@@ -32,22 +26,4 @@ test_job:
 
   script: 
     - echo "Maven test started"
-    - "mvn test"
-
-package_job:
-  stage: package
-  tags:
-    - docker 
-
-  script: 
-    - echo "Maven packaging started"
-    - "mvn package"
-
-
-Deploy_job:
-  stage: deploy
-  tags:
-    - docker 
-
-  script: 
-    - echo "Maven deploy started"
+    - ant testall
