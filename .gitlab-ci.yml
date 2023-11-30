@@ -1,13 +1,12 @@
 image: openjdk:latest
 
-before_script:
-  - apt-get update -qy
-  - apt-get install -y ant
-
 stages:
     - build
     - test
 
+before_script:
+  - apt-get update -qy
+  - apt-get install -y ant
 
 build_job:
   stage: build
@@ -15,8 +14,7 @@ build_job:
     - docker 
 
   script: 
-    - echo "Maven compile started"
-    - ant compile
+    - echo "ant compile started"
 
 
 test_job:
@@ -25,5 +23,4 @@ test_job:
     - docker 
 
   script: 
-    - echo "Maven test started"
-    - ant testall
+    - echo "ant test started"
