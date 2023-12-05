@@ -17,7 +17,7 @@ build_job:
 
   script: 
     - echo "ant compile started"
-    - ant -f FreeCol/build.xml compile
+    - ant -f FreeCol/build.xml compile-test
 
 clean_job:
   stage: clean
