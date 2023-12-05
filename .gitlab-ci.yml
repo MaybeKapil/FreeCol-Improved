@@ -1,8 +1,6 @@
 image: adoptopenjdk:8-jdk-hotspot
 
 stages:
-    - build
-    - clean
     - test
 
 before_script:
@@ -10,32 +8,16 @@ before_script:
   - apt-get install -y ant
   - ant -version
 
-build_job:
-  stage: build
-  tags:
-    - docker 
-
-  script: 
-    - echo "ant compile started"
-    - ant -f FreeCol/build.xml compile-test
-
-clean_job:
-  stage: clean
-  tags:
-    - docker 
-
-  script: 
-    - echo "ant clean started"
-    - ant -f FreeCol/build.xml clean
-
 testall_job:
   stage: test
   tags:
     - docker 
 
   script: 
+    - ls -R
     - echo "ant test started"
     - ant -f FreeCol/build.xml testall
+    - ls -R
   
   artifacts:
     paths:
