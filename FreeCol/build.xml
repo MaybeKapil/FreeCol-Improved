@@ -432,6 +432,7 @@
         </junit>
 
     	<echo message="Error property value: ${error.junit}" />
+    	<echo message="JUnit task output: ${junit.formatter.output}" />
     	
         <junitreport>
             <fileset dir="${freecol.build.dir}/report/xml">
