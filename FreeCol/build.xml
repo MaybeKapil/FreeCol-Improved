@@ -429,6 +429,10 @@
                 </batchtest>
             -->
             <sysproperty key="java.awt.headless" value="true" />
+        	
+			<!-- Capture the JUnit task output -->
+	        <formatter type="xml" usefile="false" />
+	        <formatter type="plain" usefile="false" property="junit.formatter.output" />
         </junit>
 
     	<echo message="Error property value: ${error.junit}" />
