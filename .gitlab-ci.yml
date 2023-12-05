@@ -2,6 +2,7 @@ image: adoptopenjdk:8-jdk-hotspot
 
 stages:
     - build
+    - clean
     - test
 
 before_script:
@@ -18,6 +19,14 @@ build_job:
     - echo "ant compile started"
     - ant -f FreeCol/build.xml compile
 
+clean_job:
+  stage: clean
+  tags:
+    - docker 
+
+  script: 
+    - echo "ant clean started"
+    - ant -f FreeCol/build.xml clean
 
 testall_job:
   stage: test
