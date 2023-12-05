@@ -431,6 +431,8 @@
             <sysproperty key="java.awt.headless" value="true" />
         </junit>
 
+    	<echo message="Error property value: ${error.junit}" />
+    	
         <junitreport>
             <fileset dir="${freecol.build.dir}/report/xml">
                 <include name="TEST-*.xml"/>
