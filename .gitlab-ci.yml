@@ -13,11 +13,15 @@ testall_job:
   tags:
     - docker 
 
-  script: 
+  script:
     - ls -R
     - echo "ant test started"
-    - ant -f FreeCol/build.xml testall || true
-    - ls -R
+    - set +e  # Disable automatic exit on error
+    - ant -f FreeCol/build.xml testall
+    - EXIT_CODE=$?  # Capture the exit code of the previous command
+    - ls -R  # Display additional information in the logs
+    - set -e  # Enable automatic exit on error
+    - exit $EXIT_CODE  # Exit the script with the captured exit code
   
   artifacts:
     paths:
