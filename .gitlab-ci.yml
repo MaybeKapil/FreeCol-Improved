@@ -1,19 +1,13 @@
-variables:
-  MAVEN_OPTS: -Dmaven.repo.local=.m2/repository
-
-image: maven:latest
+image: adoptopenjdk:11-jdk-hotspot
 
 stages:
     - build
     - test
-    - package
-    - deploy
 
-
-cache:
-  paths:
-    - .m2/repository
-    - target
+before_script:
+  - apt-get update -qy
+  - apt-get install -y ant
+  - ant -version
 
 build_job:
   stage: build
@@ -21,8 +15,8 @@ build_job:
     - docker 
 
   script: 
-    - echo "Maven compile started"
-    - "mvn compile"
+    - echo "ant compile started"
+    - ant -f FreeCol-master/build.xml compile
 
 
 test_job:
@@ -31,23 +25,5 @@ test_job:
     - docker 
 
   script: 
-    - echo "Maven test started"
-    - "mvn test"
-
-package_job:
-  stage: package
-  tags:
-    - docker 
-
-  script: 
-    - echo "Maven packaging started"
-    - "mvn package"
-
-
-Deploy_job:
-  stage: deploy
-  tags:
-    - docker 
-
-  script: 
-    - echo "Maven deploy started"
+    - echo "ant test started"
+    - ant -f FreeCol-master/build.xml testall
