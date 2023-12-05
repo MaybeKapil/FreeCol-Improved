@@ -36,3 +36,7 @@ testall_job:
   script: 
     - echo "ant test started"
     - ant -f FreeCol/build.xml testall
+  
+  artifacts:
+    paths:
+      - /builds/krutik_patel1/cosc442-freecol-final-project/FreeCol/build/report
