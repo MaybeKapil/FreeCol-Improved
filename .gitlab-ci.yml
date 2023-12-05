@@ -1,4 +1,4 @@
-image: adoptopenjdk:11-jdk-hotspot
+image: adoptopenjdk:8-jdk-hotspot
 
 stages:
     - build
