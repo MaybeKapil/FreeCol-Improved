@@ -1,11 +1,15 @@
 image: adoptopenjdk:8-jdk-hotspot
 
 stages:
-    - test
+  - test
 
 before_script:
   - apt-get update -qy
-  - apt-get install -y ant
+  - apt-get install -y wget unzip
+  - wget https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.9-bin.zip
+  - unzip apache-ant-1.10.9-bin.zip
+  - export ANT_HOME=$PWD/apache-ant-1.10.9
+  - export PATH=$ANT_HOME/bin:$PATH
   - ant -version
 
 testall_job:
