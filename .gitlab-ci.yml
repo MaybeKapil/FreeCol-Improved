@@ -18,8 +18,8 @@ testall_job:
     - docker 
 
   script:
-    - echo "ant test started"
-    - ant -f FreeCol/build.xml test
+    - echo "ant testall started"
+    - ant -f FreeCol/build.xml testall
   
   artifacts:
     paths:
