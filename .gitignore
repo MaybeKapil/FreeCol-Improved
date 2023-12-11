@@ -1,0 +1,6 @@
+### Eclipse ###
+.metadata
+.sonarlint
+bin/
+.log
+.class
