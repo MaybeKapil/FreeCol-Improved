@@ -802,22 +802,7 @@ public final class FreeColClient {
     public void quit() {
         getConnectController().quitGame(isSinglePlayer());
         try { // delete outdated autosave files
-            long validPeriod = 1000L * 24L * 60L * 60L // days to ms
-                * clientOptions.getInteger(ClientOptions.AUTOSAVE_VALIDITY);
-            long timeNow = System.currentTimeMillis();
-            File autoSave = FreeColDirectories.getAutosaveDirectory();
-            String[] flist;
-            if (validPeriod != 0L && autoSave != null
-                && (flist = autoSave.list()) != null) {
-                for (String f : flist) {
-                    if (!f.endsWith("." + FreeCol.FREECOL_SAVE_EXTENSION)) continue;
-                    // delete files which are older than user option allows
-                    File saveGameFile = new File(autoSave, f);
-                    if (saveGameFile.lastModified() + validPeriod < timeNow) {
-                        saveGameFile.delete();
-                    }
-                }
-            }
+            deleteOldAutosaveFiles();
         } catch (Exception e) {
             logger.log(Level.WARNING, "Failed to delete autosave", e);
         }
@@ -828,4 +813,37 @@ public final class FreeColClient {
         }
         System.exit(0);
     }
+
+    /**
+     * Deletes autosave files that are older than the specified validity period.
+     */
+	private void deleteOldAutosaveFiles() {
+		long validPeriod = getClientAutosaveValidity();
+		long timeNow = System.currentTimeMillis();
+		File autoSave = FreeColDirectories.getAutosaveDirectory();
+		String[] flist;
+		if (validPeriod != 0L && autoSave != null
+		    && (flist = autoSave.list()) != null) {
+		    for (String f : flist) {
+		        if (!f.endsWith("." + FreeCol.FREECOL_SAVE_EXTENSION)) {
+					continue;
+				}
+		        // delete files which are older than user option allows
+		        File saveGameFile = new File(autoSave, f);
+		        if (saveGameFile.lastModified() + validPeriod < timeNow) {
+		            saveGameFile.delete();
+		        }
+		    }
+		}
+	}
+	
+	/**
+     * Calculates the validity period for autosave files in milliseconds.
+     *
+     * @return The validity period in milliseconds.
+     */
+	private long getClientAutosaveValidity() {
+	    return 1000L * 24L * 60L * 60L // days to ms
+	    		* clientOptions.getInteger(ClientOptions.AUTOSAVE_VALIDITY);
+	}
 }
