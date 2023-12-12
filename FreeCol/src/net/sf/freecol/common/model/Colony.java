@@ -2124,60 +2124,96 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         GoodsType production = expert.getWorkType();
         UnitType expertType = expert.getType();
         GoodsType expertise = expertType.getExpertProduction();
-        Unit bestExpert = null;
-        int bestImprovement = 0;
 
         if (production == null || expertise == null
-            || production == expertise) return null;
+            || production == expertise) {
+			return null;
+		}
 
-        // We have an expert not doing the job of their expertise.
+        return findBestNonExpertSubstitute(expert, expertType, expertise);
+    }
+
+    /**
+     * Finds a non-expert unit in the colony that is better suited for the specified job
+     * than the provided expert unit.
+     *
+     * @param expert     The expert unit to be replaced.
+     * @param expertType The type of the expert unit.
+     * @param expertise  The type of goods the expert is specialized in producing.
+     * @return A non-expert unit that could perform the job better, or null if none available.
+     */
+	private Unit findBestNonExpertSubstitute(Unit expert, UnitType expertType, GoodsType expertise) {
+		// We have an expert not doing the job of their expertise.
         // Check if there is a non-expert doing the job instead.
+		
+		Unit bestExpert = null;
+        int bestImprovement = 0;
+        
         for (Unit nonExpert : getUnitList()) {
             if (nonExpert.getWorkType() != expertise
-                || nonExpert.getType() == expertType) continue;
+                || nonExpert.getType() == expertType) {
+				continue;
+			}
 
-            // We have found a unit of a different type doing the
-            // job of this expert's expertise now check if the
-            // production would be better if the units swapped
-            // positions.
-            int expertProductionNow = 0;
-            int nonExpertProductionNow = 0;
-            int expertProductionPotential = 0;
-            int nonExpertProductionPotential = 0;
-
-            // Get the current and potential productions for the
-            // work location of the expert.
-            WorkLocation ewl = expert.getWorkLocation();
-            if (ewl != null) {
-                expertProductionNow = ewl.getPotentialProduction(expertise,
-                    expert.getType());
-                nonExpertProductionPotential
-                    = ewl.getPotentialProduction(expertise,
-                        nonExpert.getType());
-            }
-
-            // Get the current and potential productions for the
-            // work location of the non-expert.
-            WorkLocation nwl = nonExpert.getWorkTile();
-            if (nwl != null) {
-                nonExpertProductionNow = nwl.getPotentialProduction(expertise,
-                    nonExpert.getType());
-                expertProductionPotential
-                    = nwl.getPotentialProduction(expertise, expertType);
-            }
+            
 
             // Find the unit that achieves the best improvement.
-            int improvement = expertProductionPotential
-                + nonExpertProductionPotential
-                - expertProductionNow
-                - nonExpertProductionNow;
+            int improvement = calculateImprovement(expert, expertType, expertise, nonExpert);
             if (improvement > bestImprovement) {
                 bestImprovement = improvement;
                 bestExpert = nonExpert;
             }
         }
-        return bestExpert;
-    }
+		return bestExpert;
+	}
+	
+	/**
+	 * Calculates the potential improvement in production if an expert and a non-expert unit
+	 * swap their positions in performing a specified job.
+	 *
+	 * @param expert      The expert unit.
+	 * @param expertType  The type of the expert unit.
+	 * @param expertise   The type of goods the expert is specialized in producing.
+	 * @param nonExpert   The non-expert unit potentially replacing the expert.
+	 * @return The potential improvement in production.
+	 */
+	private int calculateImprovement(Unit expert, UnitType expertType, GoodsType expertise, Unit nonExpert) {
+		// We have found a unit of a different type doing the
+        // job of this expert's expertise now check if the
+        // production would be better if the units swapped
+        // positions.
+        int expertProductionNow = 0;
+        int nonExpertProductionNow = 0;
+        int expertProductionPotential = 0;
+        int nonExpertProductionPotential = 0;
+
+        // Get the current and potential productions for the
+        // work location of the expert.
+        WorkLocation ewl = expert.getWorkLocation();
+        if (ewl != null) {
+            expertProductionNow = ewl.getPotentialProduction(expertise,
+                expert.getType());
+            nonExpertProductionPotential
+                = ewl.getPotentialProduction(expertise,
+                    nonExpert.getType());
+        }
+
+        // Get the current and potential productions for the
+        // work location of the non-expert.
+        WorkLocation nwl = nonExpert.getWorkTile();
+        if (nwl != null) {
+            nonExpertProductionNow = nwl.getPotentialProduction(expertise,
+                nonExpert.getType());
+            expertProductionPotential
+                = nwl.getPotentialProduction(expertise, expertType);
+        }
+
+        // Find the unit that achieves the best improvement.
+        return expertProductionPotential
+            + nonExpertProductionPotential
+            - expertProductionNow
+            - nonExpertProductionNow;
+	}
 
     /**
      * Determine if there is a problem with the production of a given
