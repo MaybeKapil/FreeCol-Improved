@@ -1524,40 +1524,142 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                 + ") unit not at work location in this colony.");
         }
         if (enable) {
-            if (wl.canTeach()) {
-                Unit student = unit.getStudent();
-                if (student == null
-                    && (student = findStudent(unit)) != null) {
-                    unit.setStudent(student);
-                    student.setTeacher(unit);
-                    unit.setTurnsOfTraining(0);// Teacher starts teaching
-                    unit.changeWorkType(null);
-                }
-            } else {
-                Unit teacher = unit.getTeacher();
-                if (teacher == null
-                    && (teacher = findTeacher(unit)) != null) {
-                    unit.setTeacher(teacher);
-                    teacher.setStudent(unit);
-                }
-            }
+            handleEducationEnable(unit, wl);
         } else {
-            if (wl.canTeach()) {
-                Unit student = unit.getStudent();
-                if (student != null) {
-                    student.setTeacher(null);
-                    unit.setStudent(null);
-                    unit.setTurnsOfTraining(0);// Teacher stops teaching
-                }
-            } else {
-                Unit teacher = unit.getTeacher();
-                if (teacher != null) {
-                    teacher.setStudent(null);
-                    unit.setTeacher(null);
-                }
-            }
+            handleEducationDisable(unit, wl);
         }
     }
+
+    /**
+     * Handles the education enable scenario based on the work location's teaching ability.
+     * If the work location can teach, calls handleTeachingEnable; otherwise, calls handleLearningEnable.
+     *
+     * @param unit The {@code Unit} for which education is being enabled.
+     * @param wl   The {@code WorkLocation} where the unit is located.
+     */
+    private void handleEducationEnable(Unit unit, WorkLocation wl) {
+		if (wl.canTeach()) {
+			handleTeachingEnable(unit);
+		} else {
+			handleLearningEnable(unit);
+		}
+	}
+
+    /**
+     * Handles the case where the unit can teach. Checks if the unit has a student,
+     * and if not, attempts to find a student and establishes an education relationship.
+     *
+     * @param unit The {@code Unit} that can teach.
+     */
+	private void handleTeachingEnable(Unit unit) {
+		Unit student = unit.getStudent();
+		if (student == null
+		    && (student = findStudent(unit)) != null) {
+			initializeTeachingRelationship(unit, student);
+		}
+	}
+
+	/**
+	 * Handles the case where the unit can learn. Checks if the unit has a teacher,
+	 * and if not, attempts to find a teacher and establishes an education relationship.
+	 *
+	 * @param unit The {@code Unit} that can learn.
+	 */
+	private void handleLearningEnable(Unit unit) {
+		Unit teacher = unit.getTeacher();
+		if (teacher == null
+		    && (teacher = findTeacher(unit)) != null) {
+		    initializeLearningRelationship(unit, teacher);
+		}
+	}
+	
+	/**
+	 * Initializes the teaching relationship between the unit and the student.
+	 *
+	 * @param unit    The {@code Unit} that is teaching.
+	 * @param student The {@code Unit} that is the student.
+	 */
+	private void initializeTeachingRelationship(Unit unit, Unit student) {
+		unit.setStudent(student);
+		student.setTeacher(unit);
+		unit.setTurnsOfTraining(0);// Teacher starts teaching
+		unit.changeWorkType(null);
+	}
+
+	/**
+	 * Initializes the learning relationship between the unit and the teacher.
+	 *
+	 * @param unit    The {@code Unit} that is learning.
+	 * @param teacher The {@code Unit} that is the teacher.
+	 */
+	private void initializeLearningRelationship(Unit unit, Unit teacher) {
+		unit.setTeacher(teacher);
+		teacher.setStudent(unit);
+	}
+	
+	/**
+	 * Handles the education disable scenario based on the work location's teaching ability.
+	 * If the work location can teach, calls handleTeachingDisable; otherwise, calls handleLearningDisable.
+	 *
+	 * @param unit The {@code Unit} for which education is being disabled.
+	 * @param wl   The {@code WorkLocation} where the unit is located.
+	 */
+	private void handleEducationDisable(Unit unit, WorkLocation wl) {
+		if (wl.canTeach()) {
+		    handleTeachingDisable(unit);
+		} else {
+		    handleLearningDisable(unit);
+		}
+	}
+
+	/**
+	 * Handles the case where the unit can learn. Checks if the unit has a teacher,
+	 * and if yes, terminates the learning relationship.
+	 *
+	 * @param unit The {@code Unit} that can learn.
+	 */
+	private void handleLearningDisable(Unit unit) {
+		Unit teacher = unit.getTeacher();
+		if (teacher != null) {
+		    terminateLearningRelationship(unit, teacher);
+		}
+	}
+
+	/**
+	 * Terminates the learning relationship between the unit and the teacher.
+	 *
+	 * @param unit    The {@code Unit} that was learning.
+	 * @param teacher The {@code Unit} that was the teacher.
+	 */
+	private void terminateLearningRelationship(Unit unit, Unit teacher) {
+		teacher.setStudent(null);
+		unit.setTeacher(null);
+	}
+
+	/**
+	 * Handles the case where the unit can teach. Checks if the unit has a student,
+	 * and if yes, terminates the teaching relationship.
+	 *
+	 * @param unit The {@code Unit} that can teach.
+	 */
+	private void handleTeachingDisable(Unit unit) {
+		Unit student = unit.getStudent();
+		if (student != null) {
+		    terminateTeachingRelationship(unit, student);
+		}
+	}
+
+	/**
+	 * Terminates the teaching relationship between the unit and the student.
+	 *
+	 * @param unit    The {@code Unit} that was teaching.
+	 * @param student The {@code Unit} that was the student.
+	 */
+	private void terminateTeachingRelationship(Unit unit, Unit student) {
+		student.setTeacher(null);
+		unit.setStudent(null);
+		unit.setTurnsOfTraining(0);// Teacher stops teaching
+	}	
 
     /**
      * Does this colony have undead units?
@@ -3152,6 +3254,4 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         return "colony";
     }
 }
-
-
 
