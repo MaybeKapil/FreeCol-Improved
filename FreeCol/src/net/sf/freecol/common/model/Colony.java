@@ -2156,28 +2156,29 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public void invalidateCache() {
         productionCache.invalidate();
     }
-
+    
     /**
-     * Can this colony produce certain goods?
+     * Checks if the colony can produce the specified goods type.
      *
-     * @param goodsType The <code>GoodsType</code> to check production of.
-     * @return True if the goods can be produced.
+     * @param goodsType The type of goods to be produced.
+     * @return True if production is possible, false otherwise.
      */
     public boolean canProduce(GoodsType goodsType) {
-        return (getNetProductionOf(goodsType) > 0)
-            ? true // Obviously:-)
-
+        // If the net production is positive, production is possible
+        if (getNetProductionOf(goodsType) > 0) {
+            return true; // Obviously :-)
+        } else if (goodsType.isBreedable()) {
             // Breeding requires the breedable number to be present
-            : (goodsType.isBreedable())
-            ? getGoodsCount(goodsType) >= goodsType.getBreedingNumber()
-
-            // Is there a work location that can produce the goods, with
-            // positive generic production potential and all inputs satisfied?
-            : any(getWorkLocationsForProducing(goodsType),
-                wl -> wl.getGenericPotential(goodsType) > 0
-                    && all(wl.getInputs(),ag -> canProduce(ag.getType())));
+            return getGoodsCount(goodsType) >= goodsType.getBreedingNumber();
+        } else {
+            // Check if there's a work location that can produce the goods
+            // with positive generic production potential and all inputs satisfied
+            return any(getWorkLocationsForProducing(goodsType),
+                    workLocation -> workLocation.getGenericPotential(goodsType) > 0
+                            && all(workLocation.getInputs(), 
+                            		inputGoods -> canProduce(inputGoods.getType())));
+        }
     }
-
   
     // Planning support
 
