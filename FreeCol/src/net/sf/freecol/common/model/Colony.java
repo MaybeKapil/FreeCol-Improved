@@ -1,3 +1,4 @@
+
 /**
  *  Copyright (C) 2002-2015   The FreeCol Team
  *
@@ -842,7 +843,10 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public int getTurnsToComplete(BuildableType buildable,
                                   AbstractGoods needed) {
         final List<AbstractGoods> required = buildable.getRequiredGoods();
-        int turns = 0, satisfied = 0, failing = 0, underway = 0;
+        int turns = 0;
+        int satisfied = 0;
+        int failing = 0;
+        int underway = 0;
         
         ProductionInfo info = productionCache.getProductionInfo(buildQueue);
         for (AbstractGoods ag : required) {
@@ -853,34 +857,122 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                 satisfied++;
                 continue;
             }
-            int production = productionCache.getNetProductionOf(type);
-            if (info != null) {
-                AbstractGoods consumption = AbstractGoods.findByType(type,
-                    info.getConsumption());
-                if (consumption != null) {
-                    // add the amount the build queue itself will consume
-                    production += consumption.getAmount();
-                }
-            }
+            
+            // get the production amount based on the current AbstractGood's type
+            int production = getNetProductionBasedOnGoodsType(info, type);            
+            
             if (production <= 0) {
                 failing++;
-                if (needed != null) {
-                    needed.setType(type);
-                    needed.setAmount(amountNeeded - amountAvailable);
-                }
+                
+                // adjust the needed amount for the current AbstractGoods object in the AbstractGoods list
+                setNeededTypeAndAmount(needed, type, amountNeeded, amountAvailable);
                 continue;
             }
 
             underway++;
-            int amountRemaining = amountNeeded - amountAvailable;
-            int eta = amountRemaining / production;
-            if (amountRemaining % production != 0) eta++;
-            turns = Math.max(turns, eta);
+            
+            // calculate the turns required for the current good
+            turns = calculateTurnsForCurrentGood(turns, amountNeeded, amountAvailable, production);            
+            
         }
-
-        return (satisfied + underway == required.size()) ? turns // Will finish
-            : (failing == required.size()) ? UNDEFINED // Not even trying
-            : -(turns + 1); // Blocked by something
+        
+        // calculate the total turns required for the buildable
+        turns = calculateTurnsForBuildable(satisfied, underway, required, turns, failing);
+        
+        return turns;
+    }
+    
+    /**
+     * Calculate the number of turns required for the current good based on its production.
+     *
+     * @param turns The current number of turns.
+     * @param needed The amount of the good needed.
+     * @param available The amount of the good available.
+     * @param production The production rate of the good.
+     * @return The updated number of turns, considering the production rate:
+     *         - If needed equals available, returns 'turns' (No additional turns needed).
+     *         - Otherwise, calculates the estimated turns required for the remaining amount
+     *           and returns the maximum of 'turns' and the estimated turns.
+     * @see #getTurnsToComplete(BuildableType)
+     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
+     */
+    private int calculateTurnsForCurrentGood(int turns, int needed, int avaliable, int production) {
+    	int amountRemaining = needed - avaliable;
+        int eta = amountRemaining / production;
+        if (amountRemaining % production != 0) eta++;
+        
+        return Math.max(turns, eta);
+    }
+    
+    /**
+     * Calculate the number of turns required for the buildable type.
+     *
+     * @param satisfied The number of satisfied conditions.
+     * @param underway The number of conditions currently underway.
+     * @param required The list of required goods (List<AbstractGoods>).
+     * @param turns The current number of turns.
+     * @param failing The number of failing conditions.
+     * @return The calculated number of turns:
+     *         - If satisfied + underway equals the size of required, returns 'turns' (Will finish).
+     *         - If failing equals the size of required, returns 'UNDEFINED' (Not even trying).
+     *         - Otherwise, returns the negation of (turns + 1) (Blocked by something).
+     * @see #getTurnsToComplete(BuildableType)
+     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
+     */
+    private int calculateTurnsForBuildable(int satisfied, int underway, List<AbstractGoods> required, int turns, int failing) {
+    	if (satisfied + underway == required.size()) {
+    		return turns; // Will finish
+    	}
+    	else if (failing == required.size()) {
+    		return UNDEFINED; // Not even trying
+    	}
+    	else {
+    		return -(turns + 1); // Blocked by something
+    	}
+    }
+    
+    /**
+     * Set the needed amount and type for the specified good based
+     * on how much of that good is available
+     *
+     * @param needed The <code>AbstractGoods</code> to be adjusted.
+     * @param goodsType a <code>GoodsType</code> value
+     * @param amountNeeded The required amount of the specific type 
+     * of goods.
+     * @param amountAvailable The currently available amount of the
+     * specific type of goods.
+     * @see #getTurnsToComplete(BuildableType)
+     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
+     */
+	private void setNeededTypeAndAmount(AbstractGoods needed, GoodsType goodsType, int amountNeeded,
+			int amountAvailable) {
+		if (needed != null) {
+		    needed.setType(goodsType);
+		    needed.setAmount(amountNeeded - amountAvailable);
+		}
+	}
+    
+	/**
+     * Gets the production amount for the specified type of good
+     * based on the production info
+     *
+     * @param info a <code>ProductionInfo</code> value
+     * @param goodsType a <code>GoodsType</code> value
+     * production require for that type based on the production info
+     * @return integer the net production based on the type of good
+     */
+    private int getNetProductionBasedOnGoodsType(ProductionInfo info, GoodsType goodsType) {
+    	int production = productionCache.getNetProductionOf(goodsType);
+    	if (info != null) {
+            AbstractGoods consumption = AbstractGoods.findByType(goodsType,
+                info.getConsumption());
+            if (consumption != null) {
+                // add the amount the build queue itself will consume
+                production += consumption.getAmount();
+            }
+        }
+    	
+    	return production;
     }
 
     /**
