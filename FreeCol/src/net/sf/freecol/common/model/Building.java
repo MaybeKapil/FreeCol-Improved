@@ -211,6 +211,29 @@ public class Building extends WorkLocation
         return AbstractGoods.getCount(type, available);
     }
 
+    private double maximumRatio;
+    private double minimumRatio;
+
+    // Getter for maximumRatio
+    private double getMaximumRatio() {
+    	return maximumRatio;
+    }
+
+    // Setter for maximumRatio
+    private void setMaximumRatio(double maximumRatio) {
+    	this.maximumRatio = maximumRatio;
+    }
+
+    // Getter for minimumRatio
+    private double getMinimumRatio() {
+    	return minimumRatio;
+    }
+
+    // Setter for minimumRatio
+    private void setMinimumRatio(double minimumRatio) {
+    	this.minimumRatio = minimumRatio;
+    }
+    
     /**
      * Gets the production information for this building taking account
      * of the available input and output goods.
@@ -235,52 +258,82 @@ public class Building extends WorkLocation
         // goods and the amount actually consumed and produced, and
         // the maximum possible ratio that would apply but for
         // circumstances such as limited input availability.
-        double maximumRatio = 0.0, minimumRatio = Double.MAX_VALUE;
+        	
+        setMaximumRatio(0.0);
+        setMinimumRatio(Double.MAX_VALUE);
 
         // First, calculate the nominal production ratios.
-        if (canAutoProduce()) {
-            // Autoproducers are special
-            for (AbstractGoods output : getOutputs()) {
-                if (output.getAmount() <= 0) continue;
-                final GoodsType goodsType = output.getType();
-                int available = getColony().getGoodsCount(goodsType);
-                if (available >= capacity) {
-                    minimumRatio = maximumRatio = 0.0;
-                } else {
-                    int divisor = (int)getType().applyModifiers(0f, turn,
-                        Modifier.BREEDING_DIVISOR);
-                    int factor = (int)getType().applyModifiers(0f, turn,
-                        Modifier.BREEDING_FACTOR);
-                    int production = (available < goodsType.getBreedingNumber()
-                        || divisor <= 0) ? 0
-                        // Deliberate use of integer division
-                        : ((available - 1) / divisor + 1) * factor;
-                    double newRatio = (double)production / output.getAmount();
-                    minimumRatio = Math.min(minimumRatio, newRatio);
-                    maximumRatio = Math.max(maximumRatio, newRatio);
-                }
-            }
-        } else {
-            for (AbstractGoods output : getOutputs()) {
-                final GoodsType goodsType = output.getType();
-                float production = getUnitList().stream()
-                    .mapToInt(u -> getUnitProduction(u, goodsType)).sum();
-                // Unattended production always applies for buildings!
-                production += getBaseProduction(null, goodsType, null);
-                production = applyModifiers(production, turn,
-                    getProductionModifiers(goodsType, null));
-                production = (int)Math.floor(production);
-                // Beware!  If we ever unify this code with ColonyTile,
-                // ColonyTiles have outputs with zero amount.
-                double newRatio = production / output.getAmount();
-                minimumRatio = Math.min(minimumRatio, newRatio);
-                maximumRatio = Math.max(maximumRatio, newRatio);
-            }
-        }
+        calcNominalProductionRatios(turn, capacity);
 
         // Then reduce the minimum ratio if some input is in short supply.
-        for (AbstractGoods input : getInputs()) {
-            long required = (long)Math.floor(input.getAmount() * minimumRatio);
+        reduceMinimumRatioShortSupply(inputs, spec);
+
+        // Check whether there is space enough to store the goods
+        // produced in order to avoid excess production.
+        checkStorageSpaceAvoidExcess(outputs, avoidOverflow, capacity);
+
+        final double epsilon = 0.0001;
+        maximizeConsumption(result, epsilon);
+        minimizeProduction(result, epsilon);
+        return result;
+    }
+
+	private void minimizeProduction(ProductionInfo result, final double epsilon) {
+		for (AbstractGoods output : getOutputs()) {
+            GoodsType type = output.getType();
+            // minimize production, but add a magic little something
+            // to counter rounding errors
+            int production = (int)Math.floor(output.getAmount() * getMinimumRatio()
+                + epsilon);
+            int maximumProduction = (int)Math.floor(output.getAmount()
+                * getMaximumRatio());
+            result.addProduction(new AbstractGoods(type, production));
+            if (production < maximumProduction) {
+                result.addMaximumProduction(new AbstractGoods(type, maximumProduction));
+            }
+        }
+	}
+
+	private void maximizeConsumption(ProductionInfo result, final double epsilon) {
+		for (AbstractGoods input : getInputs()) {
+            GoodsType type = input.getType();
+            // maximize consumption
+            int consumption = (int)Math.floor(input.getAmount()
+                * getMinimumRatio() + epsilon);
+            int maximumConsumption = (int)Math.floor(input.getAmount()
+                * getMaximumRatio());
+            result.addConsumption(new AbstractGoods(type, consumption));
+            if (consumption < maximumConsumption) {
+                result.addMaximumConsumption(new AbstractGoods(type, maximumConsumption));
+            }
+        }
+	}
+
+	private void checkStorageSpaceAvoidExcess(List<AbstractGoods> outputs, final boolean avoidOverflow,
+			final int capacity) {
+		if (avoidOverflow) {
+            for (AbstractGoods output : getOutputs()) {
+                double production = output.getAmount() * getMinimumRatio();
+                if (production <= 0) continue;
+                double headroom = (double)capacity
+                    - getAvailable(output.getType(), outputs);
+                // Clamp production at warehouse capacity
+                if (production > headroom) {
+                    setMinimumRatio(Math.min(getMinimumRatio(),
+                        headroom / output.getAmount()));
+                }
+                production = output.getAmount() * getMaximumRatio();
+                if (production > headroom) {
+                    setMaximumRatio(Math.min(getMaximumRatio(), 
+                        headroom / output.getAmount()));
+                }
+            }
+        }
+	}
+
+	private void reduceMinimumRatioShortSupply(List<AbstractGoods> inputs, final Specification spec) {
+		for (AbstractGoods input : getInputs()) {
+            long required = (long)Math.floor(input.getAmount() * getMinimumRatio());
             long available = getAvailable(input.getType(), inputs);
             // Do not allow auto-production to go negative.
             if (canAutoProduce()) available = Math.max(0, available);
@@ -300,60 +353,64 @@ public class Building extends WorkLocation
             }
             // Scale production by limitations on availability.
             if (available < required) {
-                minimumRatio *= (double)available / required;
+            	
+            	double ratio = (double)available / required;
+            	setMinimumRatio(getMinimumRatio() * ratio);
                 //maximumRatio = Math.max(maximumRatio, minimumRatio);
             }
         }
+	}
 
-        // Check whether there is space enough to store the goods
-        // produced in order to avoid excess production.
-        if (avoidOverflow) {
-            for (AbstractGoods output : getOutputs()) {
-                double production = output.getAmount() * minimumRatio;
-                if (production <= 0) continue;
-                double headroom = (double)capacity
-                    - getAvailable(output.getType(), outputs);
-                // Clamp production at warehouse capacity
-                if (production > headroom) {
-                    minimumRatio = Math.min(minimumRatio,
-                        headroom / output.getAmount());
-                }
-                production = output.getAmount() * maximumRatio;
-                if (production > headroom) {
-                    maximumRatio = Math.min(maximumRatio, 
-                        headroom / output.getAmount());
-                }
-            }
+	private void calcNominalProductionRatios(final Turn turn, final int capacity) {
+		if (canAutoProduce()) {
+            specialAutoproducersRatios(turn, capacity);
+        } else {
+            notSpecialAutoproducersRatio(turn);
         }
+	}
 
-        final double epsilon = 0.0001;
-        for (AbstractGoods input : getInputs()) {
-            GoodsType type = input.getType();
-            // maximize consumption
-            int consumption = (int)Math.floor(input.getAmount()
-                * minimumRatio + epsilon);
-            int maximumConsumption = (int)Math.floor(input.getAmount()
-                * maximumRatio);
-            result.addConsumption(new AbstractGoods(type, consumption));
-            if (consumption < maximumConsumption) {
-                result.addMaximumConsumption(new AbstractGoods(type, maximumConsumption));
-            }
-        }
-        for (AbstractGoods output : getOutputs()) {
-            GoodsType type = output.getType();
-            // minimize production, but add a magic little something
-            // to counter rounding errors
-            int production = (int)Math.floor(output.getAmount() * minimumRatio
-                + epsilon);
-            int maximumProduction = (int)Math.floor(output.getAmount()
-                * maximumRatio);
-            result.addProduction(new AbstractGoods(type, production));
-            if (production < maximumProduction) {
-                result.addMaximumProduction(new AbstractGoods(type, maximumProduction));
-            }
-        }
-        return result;
-    }
+	private void notSpecialAutoproducersRatio(final Turn turn) {
+		for (AbstractGoods output : getOutputs()) {
+		    final GoodsType goodsType = output.getType();
+		    float production = getUnitList().stream()
+		        .mapToInt(u -> getUnitProduction(u, goodsType)).sum();
+		    // Unattended production always applies for buildings!
+		    production += getBaseProduction(null, goodsType, null);
+		    production = applyModifiers(production, turn,
+		        getProductionModifiers(goodsType, null));
+		    production = (int)Math.floor(production);
+		    // Beware!  If we ever unify this code with ColonyTile,
+		    // ColonyTiles have outputs with zero amount.
+		    double newRatio = production / output.getAmount();
+		    setMinimumRatio(Math.min(getMinimumRatio(), newRatio));
+			setMaximumRatio(Math.max(getMaximumRatio(), newRatio));
+		}
+	}
+
+	private void specialAutoproducersRatios(final Turn turn, final int capacity) {
+		// Autoproducers are special
+		for (AbstractGoods output : getOutputs()) {
+		    if (output.getAmount() <= 0) continue;
+		    final GoodsType goodsType = output.getType();
+		    int available = getColony().getGoodsCount(goodsType);
+		    if (available >= capacity) {
+		    	setMinimumRatio(0.0);
+				setMaximumRatio(0.0);
+		    } else {
+		        int divisor = (int)getType().applyModifiers(0f, turn,
+		            Modifier.BREEDING_DIVISOR);
+		        int factor = (int)getType().applyModifiers(0f, turn,
+		            Modifier.BREEDING_FACTOR);
+		        int production = (available < goodsType.getBreedingNumber()
+		            || divisor <= 0) ? 0
+		            // Deliberate use of integer division
+		            : ((available - 1) / divisor + 1) * factor;
+		        double newRatio = (double)production / output.getAmount();
+		        setMinimumRatio(Math.min(getMinimumRatio(), newRatio));
+				setMaximumRatio(Math.max(getMaximumRatio(), newRatio));
+		    }
+		}
+	}
 
     /**
      * Evaluate this work location for a given player.
