@@ -38,6 +38,8 @@ import javax.xml.stream.XMLStreamException;
 
 import net.sf.freecol.common.io.FreeColXMLReader;
 import net.sf.freecol.common.io.FreeColXMLWriter;
+import net.sf.freecol.common.model.Occupation;
+import net.sf.freecol.common.model.Stance;
 
 import static net.sf.freecol.common.util.CollectionUtils.*;
 
@@ -353,9 +355,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     private void accumulateChoice(GoodsType workType,
                                   Collection<GoodsType> tried,
                                   List<Collection<GoodsType>> result) {
-        if (workType == null) {
-			return;
-		}
+        if (workType == null) return;
         accumulateChoices(workType.getEquivalentTypes(), tried, result);
     }
 
@@ -422,9 +422,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     private Occupation getOccupationFor(Unit unit,
                                         Collection<GoodsType> workTypes,
                                         LogBuilder lb) {
-        if (workTypes.isEmpty()) {
-			return null;
-		}
+        if (workTypes.isEmpty()) return null;
 
         Occupation best = new Occupation(null, null, null);
         int bestAmount = 0;
@@ -455,9 +453,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
             lb.add("\n  ");
             FreeColObject.logFreeColObjects(types, lb);
             Occupation occupation = getOccupationFor(unit, types, lb);
-            if (occupation != null) {
-				return occupation;
-			}
+            if (occupation != null) return occupation;
         }
         lb.add("\n  => FAILED");
         return null;
@@ -564,13 +560,9 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      * @return True if the building was added.
      */
     public boolean addBuilding(final Building building) {
-        if (building == null || building.getType() == null) {
-			return false;
-		}
+        if (building == null || building.getType() == null) return false;
         final BuildingType buildingType = building.getType().getFirstLevel();
-        if (buildingType == null || buildingType.getId() == null) {
-			return false;
-		}
+        if (buildingType == null || buildingType.getId() == null) return false;
         buildingMap.put(buildingType.getId(), building);
         addFeatures(building.getType());
         return true;
@@ -587,9 +579,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      */
     protected boolean removeBuilding(final Building building) {
         final BuildingType buildingType = building.getType().getFirstLevel();
-        if (buildingMap.remove(buildingType.getId()) == null) {
-			return false;
-		}
+        if (buildingMap.remove(buildingType.getId()) == null) return false;
         removeFeatures(building.getType());
         return true;
     }
@@ -603,9 +593,8 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      */
     public Building getBuildingForProducing(final GoodsType goodsType) {
         for (Building b : buildingMap.values()) {
-            if (AbstractGoods.findByType(goodsType, b.getOutputs()) != null) {
-				return b;
-			}
+            if (AbstractGoods.findByType(goodsType, b.getOutputs()) != null)
+                return b;
         }
         return null;
     }
@@ -619,9 +608,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      */
     public WorkLocation getWorkLocationWithAbility(String ability) {
         for (WorkLocation wl : getCurrentWorkLocations()) {
-            if (wl.hasAbility(ability)) {
-				return wl;
-			}
+            if (wl.hasAbility(ability)) return wl;
         }
         return null;
     }
@@ -637,9 +624,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public <T extends WorkLocation> T getWorkLocationWithAbility(String ability,
         Class<T> returnClass) {
         WorkLocation wl = getWorkLocationWithAbility(ability);
-        if (wl != null) {
-			try { return returnClass.cast(wl); } catch (ClassCastException cce) {}
-		};
+        if (wl != null) try { return returnClass.cast(wl); } catch (ClassCastException cce) {};
         return null;
     }
 
@@ -652,9 +637,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      */
     public WorkLocation getWorkLocationWithModifier(String modifier) {
         for (WorkLocation wl : getCurrentWorkLocations()) {
-            if (wl.hasModifier(modifier)) {
-				return wl;
-			}
+            if (wl.hasModifier(modifier)) return wl;
         }
         return null;
     }
@@ -670,11 +653,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public <T extends WorkLocation> T getWorkLocationWithModifier(String modifier,
         Class<T> returnClass) {
         WorkLocation wl = getWorkLocationWithModifier(modifier);
-        if (wl != null) {
-			try { 
-				return returnClass.cast(wl); 
-			} catch (ClassCastException cce) {}
-		}
+        if (wl != null) try { return returnClass.cast(wl); } catch (ClassCastException cce) {}
         return null;
     }
     
@@ -727,9 +706,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      * @return The best <code>WorkLocation</code> found.
      */
     public WorkLocation getWorkLocationFor(Unit unit, GoodsType goodsType) {
-        if (goodsType == null) {
-			return getWorkLocationFor(unit);
-		}
+        if (goodsType == null) return getWorkLocationFor(unit);
         Occupation occupation
             = getOccupationFor(unit, goodsType.getEquivalentTypes());
         return (occupation == null) ? null : occupation.workLocation;
@@ -867,9 +844,9 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                                   AbstractGoods needed) {
         final List<AbstractGoods> required = buildable.getRequiredGoods();
         int turns = 0;
-        int satisfied = 0;
-        int failing = 0;
-        int underway = 0;
+		int satisfied = 0;
+		int failing = 0;
+		int underway = 0;
         
         ProductionInfo info = productionCache.getProductionInfo(buildQueue);
         for (AbstractGoods ag : required) {
@@ -880,122 +857,36 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                 satisfied++;
                 continue;
             }
-            
-            // get the production amount based on the current AbstractGood's type
-            int production = getNetProductionBasedOnGoodsType(info, type);            
-            
+            int production = productionCache.getNetProductionOf(type);
+            if (info != null) {
+                AbstractGoods consumption = AbstractGoods.findByType(type,
+                    info.getConsumption());
+                if (consumption != null) {
+                    // add the amount the build queue itself will consume
+                    production += consumption.getAmount();
+                }
+            }
             if (production <= 0) {
                 failing++;
-                
-                // adjust the needed amount for the current AbstractGoods object in the AbstractGoods list
-                setNeededTypeAndAmount(needed, type, amountNeeded, amountAvailable);
+                if (needed != null) {
+                    needed.setType(type);
+                    needed.setAmount(amountNeeded - amountAvailable);
+                }
                 continue;
             }
 
             underway++;
-            
-            // calculate the turns required for the current good
-            turns = calculateTurnsForCurrentGood(turns, amountNeeded, amountAvailable, production);            
-            
+            int amountRemaining = amountNeeded - amountAvailable;
+            int eta = amountRemaining / production;
+            if (amountRemaining % production != 0) {
+				eta++;
+			}
+            turns = Math.max(turns, eta);
         }
-        
-        // calculate the total turns required for the buildable
-        turns = calculateTurnsForBuildable(satisfied, underway, required, turns, failing);
-        
-        return turns;
-    }
-    
-    /**
-     * Calculate the number of turns required for the current good based on its production.
-     *
-     * @param turns The current number of turns.
-     * @param needed The amount of the good needed.
-     * @param available The amount of the good available.
-     * @param production The production rate of the good.
-     * @return The updated number of turns, considering the production rate:
-     *         - If needed equals available, returns 'turns' (No additional turns needed).
-     *         - Otherwise, calculates the estimated turns required for the remaining amount
-     *           and returns the maximum of 'turns' and the estimated turns.
-     * @see #getTurnsToComplete(BuildableType)
-     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
-     */
-    private int calculateTurnsForCurrentGood(int turns, int needed, int avaliable, int production) {
-    	int amountRemaining = needed - avaliable;
-        int eta = amountRemaining / production;
-        if (amountRemaining % production != 0) eta++;
-        
-        return Math.max(turns, eta);
-    }
-    
-    /**
-     * Calculate the number of turns required for the buildable type.
-     *
-     * @param satisfied The number of satisfied conditions.
-     * @param underway The number of conditions currently underway.
-     * @param required The list of required goods (List<AbstractGoods>).
-     * @param turns The current number of turns.
-     * @param failing The number of failing conditions.
-     * @return The calculated number of turns:
-     *         - If satisfied + underway equals the size of required, returns 'turns' (Will finish).
-     *         - If failing equals the size of required, returns 'UNDEFINED' (Not even trying).
-     *         - Otherwise, returns the negation of (turns + 1) (Blocked by something).
-     * @see #getTurnsToComplete(BuildableType)
-     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
-     */
-    private int calculateTurnsForBuildable(int satisfied, int underway, List<AbstractGoods> required, int turns, int failing) {
-    	if (satisfied + underway == required.size()) {
-    		return turns; // Will finish
-    	}
-    	else if (failing == required.size()) {
-    		return UNDEFINED; // Not even trying
-    	}
-    	else {
-    		return -(turns + 1); // Blocked by something
-    	}
-    }
-    
-    /**
-     * Set the needed amount and type for the specified good based
-     * on how much of that good is available
-     *
-     * @param needed The <code>AbstractGoods</code> to be adjusted.
-     * @param goodsType a <code>GoodsType</code> value
-     * @param amountNeeded The required amount of the specific type 
-     * of goods.
-     * @param amountAvailable The currently available amount of the
-     * specific type of goods.
-     * @see #getTurnsToComplete(BuildableType)
-     * @see #getTurnsToComplete(BuildableType, AbstractGoods)
-     */
-	private void setNeededTypeAndAmount(AbstractGoods needed, GoodsType goodsType, int amountNeeded,
-			int amountAvailable) {
-		if (needed != null) {
-		    needed.setType(goodsType);
-		    needed.setAmount(amountNeeded - amountAvailable);
-		}
-	}
-    
-	/**
-     * Gets the production amount for the specified type of good
-     * based on the production info
-     *
-     * @param info a <code>ProductionInfo</code> value
-     * @param goodsType a <code>GoodsType</code> value
-     * production require for that type based on the production info
-     * @return integer the net production based on the type of good
-     */
-    private int getNetProductionBasedOnGoodsType(ProductionInfo info, GoodsType goodsType) {
-    	int production = productionCache.getNetProductionOf(goodsType);
-    	if (info != null) {
-            AbstractGoods consumption = AbstractGoods.findByType(goodsType,
-                info.getConsumption());
-            if (consumption != null) {
-                // add the amount the build queue itself will consume
-                production += consumption.getAmount();
-            }
-        }
-    	
-    	return production;
+
+        return (satisfied + underway == required.size()) ? turns // Will finish
+            : (failing == required.size()) ? UNDEFINED // Not even trying
+            : -(turns + 1); // Blocked by something
     }
 
     /**
@@ -1360,12 +1251,12 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
             : (tories > veryBadGovernment) ? -2
             : (tories > badGovernment) ? -1
             : 0;
-        if (productionBonus == newBonus) {
-			return false;
-		}
-		invalidateCache();
-		productionBonus = newBonus;
-		return true;
+        if (productionBonus != newBonus) {
+            invalidateCache();
+            productionBonus = newBonus;
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1378,15 +1269,11 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      *      the negation of the number of units to remove.
      */
     public int getPreferredSizeChange() {
-        int i;
-		int limit;
-		int pop = getUnitCount();
+        int i, limit, pop = getUnitCount();
         if (productionBonus < 0) {
             limit = pop;
             for (i = 1; i < limit; i++) {
-                if (governmentChange(pop - i) == 1) {
-					break;
-				}
+                if (governmentChange(pop - i) == 1) break;
             }
             return -i;
         } else {
@@ -2156,29 +2043,28 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public void invalidateCache() {
         productionCache.invalidate();
     }
-    
+
     /**
-     * Checks if the colony can produce the specified goods type.
+     * Can this colony produce certain goods?
      *
-     * @param goodsType The type of goods to be produced.
-     * @return True if production is possible, false otherwise.
+     * @param goodsType The <code>GoodsType</code> to check production of.
+     * @return True if the goods can be produced.
      */
     public boolean canProduce(GoodsType goodsType) {
-        // If the net production is positive, production is possible
-        if (getNetProductionOf(goodsType) > 0) {
-            return true; // Obviously :-)
-        } else if (goodsType.isBreedable()) {
+        return (getNetProductionOf(goodsType) > 0)
+            ? true // Obviously:-)
+
             // Breeding requires the breedable number to be present
-            return getGoodsCount(goodsType) >= goodsType.getBreedingNumber();
-        } else {
-            // Check if there's a work location that can produce the goods
-            // with positive generic production potential and all inputs satisfied
-            return any(getWorkLocationsForProducing(goodsType),
-                    workLocation -> workLocation.getGenericPotential(goodsType) > 0
-                            && all(workLocation.getInputs(), 
-                            		inputGoods -> canProduce(inputGoods.getType())));
-        }
+            : (goodsType.isBreedable())
+            ? getGoodsCount(goodsType) >= goodsType.getBreedingNumber()
+
+            // Is there a work location that can produce the goods, with
+            // positive generic production potential and all inputs satisfied?
+            : any(getWorkLocationsForProducing(goodsType),
+                wl -> wl.getGenericPotential(goodsType) > 0
+                    && all(wl.getInputs(),ag -> canProduce(ag.getType())));
     }
+
   
     // Planning support
 
@@ -2273,64 +2159,96 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         GoodsType production = expert.getWorkType();
         UnitType expertType = expert.getType();
         GoodsType expertise = expertType.getExpertProduction();
-        Unit bestExpert = null;
-        int bestImprovement = 0;
 
         if (production == null || expertise == null
             || production == expertise) {
 			return null;
 		}
 
-        // We have an expert not doing the job of their expertise.
+        return findBestNonExpertSubstitute(expert, expertType, expertise);
+    }
+
+    /**
+     * Finds a non-expert unit in the colony that is better suited for the specified job
+     * than the provided expert unit.
+     *
+     * @param expert     The expert unit to be replaced.
+     * @param expertType The type of the expert unit.
+     * @param expertise  The type of goods the expert is specialized in producing.
+     * @return A non-expert unit that could perform the job better, or null if none available.
+     */
+	private Unit findBestNonExpertSubstitute(Unit expert, UnitType expertType, GoodsType expertise) {
+		// We have an expert not doing the job of their expertise.
         // Check if there is a non-expert doing the job instead.
+		
+		Unit bestExpert = null;
+        int bestImprovement = 0;
+        
         for (Unit nonExpert : getUnitList()) {
             if (nonExpert.getWorkType() != expertise
                 || nonExpert.getType() == expertType) {
 				continue;
 			}
 
-            // We have found a unit of a different type doing the
-            // job of this expert's expertise now check if the
-            // production would be better if the units swapped
-            // positions.
-            int expertProductionNow = 0;
-            int nonExpertProductionNow = 0;
-            int expertProductionPotential = 0;
-            int nonExpertProductionPotential = 0;
-
-            // Get the current and potential productions for the
-            // work location of the expert.
-            WorkLocation ewl = expert.getWorkLocation();
-            if (ewl != null) {
-                expertProductionNow = ewl.getPotentialProduction(expertise,
-                    expert.getType());
-                nonExpertProductionPotential
-                    = ewl.getPotentialProduction(expertise,
-                        nonExpert.getType());
-            }
-
-            // Get the current and potential productions for the
-            // work location of the non-expert.
-            WorkLocation nwl = nonExpert.getWorkTile();
-            if (nwl != null) {
-                nonExpertProductionNow = nwl.getPotentialProduction(expertise,
-                    nonExpert.getType());
-                expertProductionPotential
-                    = nwl.getPotentialProduction(expertise, expertType);
-            }
+            
 
             // Find the unit that achieves the best improvement.
-            int improvement = expertProductionPotential
-                + nonExpertProductionPotential
-                - expertProductionNow
-                - nonExpertProductionNow;
+            int improvement = calculateImprovement(expert, expertType, expertise, nonExpert);
             if (improvement > bestImprovement) {
                 bestImprovement = improvement;
                 bestExpert = nonExpert;
             }
         }
-        return bestExpert;
-    }
+		return bestExpert;
+	}
+	
+	/**
+	 * Calculates the potential improvement in production if an expert and a non-expert unit
+	 * swap their positions in performing a specified job.
+	 *
+	 * @param expert      The expert unit.
+	 * @param expertType  The type of the expert unit.
+	 * @param expertise   The type of goods the expert is specialized in producing.
+	 * @param nonExpert   The non-expert unit potentially replacing the expert.
+	 * @return The potential improvement in production.
+	 */
+	private int calculateImprovement(Unit expert, UnitType expertType, GoodsType expertise, Unit nonExpert) {
+		// We have found a unit of a different type doing the
+        // job of this expert's expertise now check if the
+        // production would be better if the units swapped
+        // positions.
+        int expertProductionNow = 0;
+        int nonExpertProductionNow = 0;
+        int expertProductionPotential = 0;
+        int nonExpertProductionPotential = 0;
+
+        // Get the current and potential productions for the
+        // work location of the expert.
+        WorkLocation ewl = expert.getWorkLocation();
+        if (ewl != null) {
+            expertProductionNow = ewl.getPotentialProduction(expertise,
+                expert.getType());
+            nonExpertProductionPotential
+                = ewl.getPotentialProduction(expertise,
+                    nonExpert.getType());
+        }
+
+        // Get the current and potential productions for the
+        // work location of the non-expert.
+        WorkLocation nwl = nonExpert.getWorkTile();
+        if (nwl != null) {
+            nonExpertProductionNow = nwl.getPotentialProduction(expertise,
+                nonExpert.getType());
+            expertProductionPotential
+                = nwl.getPotentialProduction(expertise, expertType);
+        }
+
+        // Find the unit that achieves the best improvement.
+        return expertProductionPotential
+            + nonExpertProductionPotential
+            - expertProductionNow
+            - nonExpertProductionNow;
+	}
 
     /**
      * Determine if there is a problem with the production of a given
@@ -2440,9 +2358,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
 			return null;
 		}
         StringTemplate label = StringTemplate.label(", ");
-        for (AbstractGoods ag : input) {
-			label.addStringTemplate(ag.getLabel());
-		}
+        for (AbstractGoods ag : input) label.addStringTemplate(ag.getLabel());
         
         return StringTemplate.template("model.colony.insufficientProduction")
             .addName("%colony%", getName())
@@ -2541,34 +2457,49 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public <T extends FreeColObject> T getCorresponding(T fco) {
         final String id = fco.getId();
         if (fco instanceof WorkLocation) {
-            for (WorkLocation t : getAllWorkLocations()) {
-                if (t.getId().equals(id)) {
-					return (T)t;
-				}
-            }
+            return getMatchingWorkLocation(id);
         } else if (fco instanceof Tile) {
-            if (getTile().getId().equals(id)) {
-				return (T)getTile();
-			}
-            for (ColonyTile ct : getColonyTiles()) {
-                if (ct.getWorkTile().getId().equals(id)) {
-					return (T)ct.getWorkTile();
-				}
-            }
+            return getMatchingTile(id);
         } else if (fco instanceof Unit) {
-            for (Unit t : getUnitList()) {
-                if (t.getId().equals(id)) {
-					return (T)t;
-				}
-            }
-            for (Unit t : getTile().getUnitList()) {
-                if (t.getId().equals(id)) {
-					return (T)t;
-				}
-            }
+            return getMatchingUnit(id);
         }
         return null;
     }
+
+	private <T extends FreeColObject> T getMatchingUnit(final String id) {
+		for (Unit t : getUnitList()) {
+		    if (t.getId().equals(id)) {
+				return (T)t;
+			}
+		}
+		for (Unit t : getTile().getUnitList()) {
+		    if (t.getId().equals(id)) {
+				return (T)t;
+			}
+		}
+		return null;
+	}
+
+	private <T extends FreeColObject> T getMatchingTile(final String id) {
+		if (getTile().getId().equals(id)) {
+			return (T)getTile();
+		}
+		for (ColonyTile ct : getColonyTiles()) {
+		    if (ct.getWorkTile().getId().equals(id)) {
+				return (T)ct.getWorkTile();
+			}
+		}
+		return null;
+	}
+
+	private <T extends FreeColObject> T getMatchingWorkLocation(final String id) {
+		for (WorkLocation t : getAllWorkLocations()) {
+		    if (t.getId().equals(id)) {
+				return (T)t;
+			}
+		}
+		return null;
+	}
 
 
     // Override FreeColObject
@@ -2744,9 +2675,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
     public Goods removeGoods(GoodsType type, int amount) {
         Goods removed = super.removeGoods(type, amount);
         productionCache.invalidate(type);
-        if (removed != null) {
-			modifySpecialGoods(type, -removed.getAmount());
-		}
+        if (removed != null) modifySpecialGoods(type, -removed.getAmount());
         return removed;
     }
 
@@ -2767,9 +2696,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                 : (count <= 7) ? ".medium"
                 : ".large";
             String stockade = getStockadeKey();
-            if (stockade != null) {
-				key += "." + stockade;
-			}
+            if (stockade != null) key += "." + stockade;
         }
         return "image.tileitem." + getType().getId() + key;
     }
@@ -2837,9 +2764,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         if (canBePlundered()) {
             int upper = (owner.getGold() * (getUnitCount() + 1))
                 / (owner.getColoniesPopulation() + 1);
-            if (upper > 0) {
-				return new RandomRange(100, 1, upper+1, 1);
-			}
+            if (upper > 0) return new RandomRange(100, 1, upper+1, 1);
         }
         return null;
     }
@@ -2891,9 +2816,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
                     buildable.getRequiredGoods());
             }
 
-            if (available < goods.getAmount()) {
-				return false;
-			}
+            if (available < goods.getAmount()) return false;
         }
         return true;
     }
@@ -2937,9 +2860,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      */
     @Override
     public int getImportAmount(GoodsType goodsType, int turns) {
-        if (goodsType.limitIgnored()) {
-			return GoodsContainer.HUGE_CARGO_SIZE;
-		}
+        if (goodsType.limitIgnored()) return GoodsContainer.HUGE_CARGO_SIZE;
 
         final int present = Math.max(0, getGoodsCount(goodsType)
             + turns * getNetProductionOf(goodsType));
@@ -3125,9 +3046,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
             // have no other information leaks because stockade
             // buildings have no production or units inside.
             Building stockade = getStockade();
-            if (stockade != null) {
-				stockade.toXML(xw);
-			}
+            if (stockade != null) stockade.toXML(xw);
         }
     }
 
@@ -3186,17 +3105,13 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         if (BUILD_QUEUE_TAG.equals(tag)) {
             BuildableType bt = xr.getType(spec, ID_ATTRIBUTE_TAG,
                 BuildableType.class, (BuildableType)null);
-            if (bt != null) {
-				buildQueue.add(bt);
-			}
+            if (bt != null) buildQueue.add(bt);
             xr.closeTag(BUILD_QUEUE_TAG);
 
         } else if (POPULATION_QUEUE_TAG.equals(xr.getLocalName())) {
             UnitType ut = xr.getType(spec, ID_ATTRIBUTE_TAG,
                                      UnitType.class, (UnitType)null);
-            if (ut != null) {
-				populationQueue.add(ut);
-			}
+            if (ut != null) populationQueue.add(ut);
             xr.closeTag(POPULATION_QUEUE_TAG);
 
         } else if (Building.getXMLElementTagName().equals(tag)) {
@@ -3237,3 +3152,6 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         return "colony";
     }
 }
+
+
+
