@@ -152,35 +152,13 @@ public final class FreeColClient {
         mapEditor = false;
         this.headless = headless
             || System.getProperty("java.awt.headless", "false").equals("true");
-        if (this.headless) {
-            if (!FreeColDebugger.isInDebugMode()
-                || FreeColDebugger.getDebugRunTurns() <= 0) {
-                fatal(Messages.message("client.headlessDebug"));
-            }
-        }
+        handleHeadlessMode();
 
         // Get the splash screen up early on to show activity.
-        gui = (this.headless) ? new GUI(this, scale)
-                              : new SwingGUI(this, scale);
+        gui = initalizeGUI(scale);
         gui.displaySplashScreen(splashStream);
 
-        // Look for base data directory.  Failure is fatal.
-        File baseDirectory = FreeColDirectories.getBaseDirectory();
-        FreeColDataFile baseData = null;
-        String ioeMessage = null;
-        if (baseDirectory.exists() && baseDirectory.isDirectory()) {
-            try {
-                baseData = new FreeColDataFile(baseDirectory);
-            } catch (IOException ioe) {
-                ioeMessage = ioe.getMessage();
-            }
-        }
-        if (baseData == null) {
-            fatal(Messages.message(StringTemplate.template("client.baseData")
-                          .addName("%dir%", baseDirectory.getName()))
-                + ((ioeMessage == null) ? "" : "\n" + ioeMessage));
-        }
-        ResourceManager.setBaseMapping(baseData.getResourceMapping());
+        searchForBaseDir();
 
         // Once the basic resources are in place construct other things.
 
@@ -210,24 +188,92 @@ public final class FreeColClient {
         // improvement actions, which depend on the
         // specification. However, this step could probably be
         // delayed.
-        try {
+        loadResources();
+
+        if (!this.headless) {
+        	initializeLookAndFeel(gui, fontName);
+        }
+        actionManager = new ActionManager(this);
+        actionManager.initializeActions(inGameController, connectController);
+    }
+
+    /**
+     * Loads resources, including the FreeColTcFile for the "classic" ruleset,
+     * and sets the resource mapping for tc (tile customization) data.
+     * Displays a fatal error message if an IOException occurs during the process.
+     */
+	private void loadResources() {
+		try {
             FreeColTcFile tcData = new FreeColTcFile("classic");
             ResourceManager.setTcMapping(tcData.getResourceMapping());
         } catch (IOException e) {
             fatal(Messages.message("client.classic") + "\n" + e.getMessage());
         }
+	}
 
-        if (!this.headless) {
-            // Swing system and look-and-feel initialization.
-            try {
-                gui.installLookAndFeel(fontName);
-            } catch (Exception e) {
-                fatal(Messages.message("client.laf") + "\n" + e.getMessage());
+	/**
+	 * Initializes the Swing system and look-and-feel using the specified font name.
+	 * Displays a fatal error message if an exception occurs during the initialization.
+	 *
+	 * @param gui      The GUI instance to perform the initialization on.
+	 * @param fontName The optional override of the main font.
+	 */
+	private void initializeLookAndFeel(GUI gui, final String fontName) {
+		// Swing system and look-and-feel initialization.
+		try {
+		    gui.installLookAndFeel(fontName);
+		} catch (Exception e) {
+		    fatal(Messages.message("client.laf") + "\n" + e.getMessage());
+		}
+	}
+
+	/**
+	 * Handles headless mode by checking if the application is running in headless mode.
+	 * If in headless mode and not in debug mode or debug run turns are not positive, displays a fatal error message.
+	 */
+	private void handleHeadlessMode() {
+		if (this.headless) {
+            if (!FreeColDebugger.isInDebugMode()
+                || FreeColDebugger.getDebugRunTurns() <= 0) {
+                fatal(Messages.message("client.headlessDebug"));
             }
         }
-        actionManager = new ActionManager(this);
-        actionManager.initializeActions(inGameController, connectController);
-    }
+	}
+
+	/**
+	 * Initializes the GUI based on the headless mode and the specified scale factor for GUI elements.
+	 *
+	 * @param scale The scale factor for GUI elements.
+	 * @return A GUI instance (either GUI or SwingGUI).
+	 */
+	private GUI initalizeGUI(final float scale) {
+		return (this.headless) ? new GUI(this, scale)
+                              : new SwingGUI(this, scale);
+	}
+
+	/**
+	 * Searches for the base data directory and sets the base mapping for resources.
+	 * Displays a fatal error message if the base data directory is not found or an IOException occurs during the process.
+	 */
+	private void searchForBaseDir() {
+		// Look for base data directory.  Failure is fatal.
+        File baseDirectory = FreeColDirectories.getBaseDirectory();
+        FreeColDataFile baseData = null;
+        String ioeMessage = null;
+        if (baseDirectory.exists() && baseDirectory.isDirectory()) {
+            try {
+                baseData = new FreeColDataFile(baseDirectory);
+            } catch (IOException ioe) {
+                ioeMessage = ioe.getMessage();
+            }
+        }
+        if (baseData == null) {
+            fatal(Messages.message(StringTemplate.template("client.baseData")
+                          .addName("%dir%", baseDirectory.getName()))
+                + ((ioeMessage == null) ? "" : "\n" + ioeMessage));
+        }
+        ResourceManager.setBaseMapping(baseData.getResourceMapping());
+	}
 
     /**
      * Starts the new <code>FreeColClient</code>, including the GUI.
