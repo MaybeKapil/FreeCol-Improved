@@ -2215,7 +2215,7 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
             - nonExpertProductionNow;
 	}
 
-    /**
+	/**
      * Determine if there is a problem with the production of a given
      * goods type.
      *
@@ -2231,25 +2231,11 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
         if (goodsType.isStorable()) {
             if (goodsType.limitIgnored()) {
                 if (goodsType.isFoodType()) {
-                    int starve = getStarvationTurns();
-                    if (starve == 0) {
-                        result.add(StringTemplate
-                            .template("model.colony.starving")
-                            .addName("%colony%", getName()));
-                    } else if (starve <= Colony.FAMINE_TURNS) {
-                        result.add(StringTemplate
-                            .template("model.colony.famineFeared")
-                            .addName("%colony%", getName())
-                            .addAmount("%number%", starve));
-                    }
+                    handleStarvation(result);
                 }
             } else if (!getExportData(goodsType).getExported()
                 && (waste = amount + production - getWarehouseCapacity()) > 0) {
-                result.add(StringTemplate
-                    .template("model.building.warehouseSoonFull")
-                    .addNamed("%goods%", goodsType)
-                    .addName("%colony%", getName())
-                    .addAmount("%amount%", waste));
+                exportWarehouseCapacity(goodsType, result, waste);
             }
         }
 
@@ -2258,40 +2244,155 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
             for (AbstractGoods goods : currentlyBuilding.getRequiredGoods()) {
                 if (goods.getType().equals(goodsType)
                     && amount < goods.getAmount()) {
-                    int needsAmount = goods.getAmount() - amount;
-                    result.add(StringTemplate
-                        .template("model.colony.buildableNeedsGoods")
-                        .addName("%colony%", getName())
-                        .addNamed("%buildable%", currentlyBuilding)
-                        .addAmount("%amount%", needsAmount)
-                        .addNamed("%goodsType%", goodsType));
+                    exportBuildableNeedsGoods(goodsType, result, amount, currentlyBuilding, goods);
                 }
             }
         }
 
-        for (WorkLocation wl : getWorkLocationsForProducing(goodsType)) {
-            ProductionInfo info = getProductionInfo(wl);
-            if (info == null) continue;
-            StringTemplate t = getInsufficientProductionMessage(info,
-                AbstractGoods.findByType(goodsType,
-                    info.getProductionDeficit()));
-            if (t != null) result.add(t);
-        }
-        for (WorkLocation wl : getWorkLocationsForConsuming(goodsType)) {
-            ProductionInfo info = getProductionInfo(wl);
-            if (info == null) continue;
-            List<AbstractGoods> deficit = info.getProductionDeficit();
-            if (deficit.isEmpty()) continue;
-            for (AbstractGoods ag : wl.getOutputs()) {
-                if (ag.getType().isStorable()) continue;
-                StringTemplate t = getInsufficientProductionMessage(info,
-                    AbstractGoods.findByType(ag.getType(), deficit));
-                if (t != null) result.add(t);
-            }
-        }
+        generateProductionDeficitMessagesForProducing(goodsType, result);
+        generateProductionDeficitMessagesForConsuming(goodsType, result);
 
         return result;
     }
+
+    /**
+     * Generates messages for insufficient production of goods consumed by the specified goodsType
+     * in WorkLocations focused on consumption.
+     *
+     * @param goodsType The GoodsType to check for production deficits in consumption context.
+     * @param result    The list to which the generated messages will be added.
+     */
+	private void generateProductionDeficitMessagesForConsuming(GoodsType goodsType, List<StringTemplate> result) {
+		for (WorkLocation wl : getWorkLocationsForConsuming(goodsType)) {
+            ProductionInfo info = getProductionInfo(wl);
+            if (info == null) {
+				continue;
+			}
+            List<AbstractGoods> deficit = info.getProductionDeficit();
+            if (deficit.isEmpty()) {
+				continue;
+			}
+            generateMessagesForNonStorableGoodsProductionDeficits(result, wl, info, deficit);
+        }
+	}
+
+	/**
+	 * Generates messages for insufficient production of non-storable goods in the given WorkLocation.
+	 *
+	 * @param wl      The WorkLocation to analyze for non-storable goods production deficits.
+	 * @param info    The ProductionInfo for the WorkLocation.
+	 * @param deficit The list of goods in deficit.
+	 * @param result  The list to which the generated messages will be added.
+	 */
+	private void generateMessagesForNonStorableGoodsProductionDeficits(List<StringTemplate> result, WorkLocation wl,
+			ProductionInfo info, List<AbstractGoods> deficit) {
+		for (AbstractGoods ag : wl.getOutputs()) {
+		    if (ag.getType().isStorable()) {
+				continue;
+			}
+		    StringTemplate t = getInsufficientProductionMessage(info,
+		        AbstractGoods.findByType(ag.getType(), deficit));
+		    if (t != null) {
+				result.add(t);
+			}
+		}
+	}
+
+	/**
+	 * Generates messages for insufficient production of the specified goodsType
+	 * in WorkLocations focused on production.
+	 *
+	 * @param goodsType The GoodsType to check for production deficits.
+	 * @param result    The list to which the generated messages will be added.
+	 */
+	private void generateProductionDeficitMessagesForProducing(GoodsType goodsType, List<StringTemplate> result) {
+		for (WorkLocation wl : getWorkLocationsForProducing(goodsType)) {
+            ProductionInfo info = getProductionInfo(wl);
+            if (info == null) {
+				continue;
+			}
+            StringTemplate t = getInsufficientProductionMessage(info,
+                AbstractGoods.findByType(goodsType,
+                    info.getProductionDeficit()));
+            if (t != null) {
+				result.add(t);
+			}
+        }
+	}
+
+	/**
+	 * Exports a message indicating that the currently building object
+	 * needs additional goods.
+	 *
+	 * @param goodsType       The GoodsType that is needed.
+	 * @param result          The list to which the generated messages will be added.
+	 * @param amount          The current amount of the goods in the colony.
+	 * @param currentlyBuilding The BuildableType currently under construction.
+	 * @param goods           The required goods needed for construction.
+	 */
+	private void exportBuildableNeedsGoods(GoodsType goodsType, List<StringTemplate> result, final int amount,
+			BuildableType currentlyBuilding, AbstractGoods goods) {
+		int needsAmount = goods.getAmount() - amount;
+		result.add(StringTemplate
+		    .template("model.colony.buildableNeedsGoods")
+		    .addName("%colony%", getName())
+		    .addNamed("%buildable%", currentlyBuilding)
+		    .addAmount("%amount%", needsAmount)
+		    .addNamed("%goodsType%", goodsType));
+	}
+
+	/**
+	 * Exports a message indicating that the warehouse is soon to be full.
+	 *
+	 * @param goodsType The GoodsType that is causing the warehouse to be full.
+	 * @param result    The list to which the generated messages will be added.
+	 * @param waste     The amount by which the warehouse will exceed its capacity.
+	 */
+	private void exportWarehouseCapacity(GoodsType goodsType, List<StringTemplate> result, int waste) {
+		result.add(StringTemplate
+		    .template("model.building.warehouseSoonFull")
+		    .addNamed("%goods%", goodsType)
+		    .addName("%colony%", getName())
+		    .addAmount("%amount%", waste));
+	}
+
+	/**
+	 * Handles the scenario when the colony is starving or famine is feared.
+	 *
+	 * @param result The list to which the generated messages will be added.
+	 */
+	private void handleStarvation(List<StringTemplate> result) {
+		int starve = getStarvationTurns();
+		if (starve == 0) {
+		    exportStarving(result);
+		} else if (starve <= Colony.FAMINE_TURNS) {
+		    exportFamineFeared(result, starve);
+		}
+	}
+
+	/**
+	 * Exports a message indicating that the colony is starving.
+	 *
+	 * @param result The list to which the generated messages will be added.
+	 */
+	private void exportFamineFeared(List<StringTemplate> result, int starve) {
+		result.add(StringTemplate
+		    .template("model.colony.famineFeared")
+		    .addName("%colony%", getName())
+		    .addAmount("%number%", starve));
+	}
+
+	/**
+	 * Exports a message indicating that famine is feared in the colony.
+	 *
+	 * @param result The list to which the generated messages will be added.
+	 * @param starve The number of turns until famine.
+	 */
+	private void exportStarving(List<StringTemplate> result) {
+		result.add(StringTemplate
+		    .template("model.colony.starving")
+		    .addName("%colony%", getName()));
+	}
 
     /**
      * Get a message about insufficient production for a building
