@@ -1375,56 +1375,80 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      * @param unitCount The proposed population for the colony.
      * @return 1, 0 or -1.
      */
+    
     public int governmentChange(int unitCount) {
         final Specification spec = getSpecification();
-        final int veryBadGovernment
-            = spec.getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
-        final int badGovernment
-            = spec.getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
-        final int veryGoodGovernment
-            = spec.getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
-        final int goodGovernment
-            = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
+        final int veryBadGovernment = spec.getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
+        final int badGovernment = spec.getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
+        final int veryGoodGovernment = spec.getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
+        final int goodGovernment = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
 
         int rebelPercent = calculateSoLPercentage(unitCount, getLiberty());
         int rebelCount = calculateRebels(unitCount, rebelPercent);
         int loyalistCount = unitCount - rebelCount;
 
+        return determineGovernmentChange(rebelPercent, veryGoodGovernment, goodGovernment, 
+                                         veryBadGovernment, badGovernment, loyalistCount);
+    }
+
+    private int determineGovernmentChange(int rebelPercent, int veryGoodGovernment, int goodGovernment,
+                                          int veryBadGovernment, int badGovernment, int loyalistCount) {
         int result = 0;
-        if (rebelPercent >= veryGoodGovernment) { // There are no tories left.
-            if (sonsOfLiberty < veryGoodGovernment) {
-                result = 1;
-            }
+
+        if (rebelPercent >= veryGoodGovernment) {
+            result = handleVeryGoodGovernment(veryGoodGovernment);
         } else if (rebelPercent >= goodGovernment) {
-            if (sonsOfLiberty >= veryGoodGovernment) {
-                result = -1;
-            } else if (sonsOfLiberty < goodGovernment) {
-                result = 1;
-            }
+            result = handleGoodGovernment(veryGoodGovernment,goodGovernment);
         } else {
-            if (sonsOfLiberty >= goodGovernment) {
-                result = -1;
-            } else { // Now that no bonus is applied, penalties may.
-                if (loyalistCount > veryBadGovernment) {
-                    if (tories <= veryBadGovernment) {
-                        result = -1;
-                    }
-                } else if (loyalistCount > badGovernment) {
-                    if (tories <= badGovernment) {
-                        result = -1;
-                    } else if (tories > veryBadGovernment) {
-                        result = 1;
-                    }
-                } else {
-                    if (tories > badGovernment) {
-                        result = 1;
-                    }
-                }
-            }
+            result = handleNormalGovernment(goodGovernment, veryBadGovernment, badGovernment, loyalistCount);
         }
+
         return result;
     }
 
+    private int handleVeryGoodGovernment(int veryGoodGovernment) {
+        if (sonsOfLiberty < veryGoodGovernment) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private int handleGoodGovernment(int veryGoodGovernment,int goodGovernment ) {
+        if (sonsOfLiberty >= veryGoodGovernment) {
+            return -1;
+        } else if (sonsOfLiberty < goodGovernment) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private int handleNormalGovernment(int goodGovernment, int veryBadGovernment, int badGovernment, int loyalistCount) {
+        if (sonsOfLiberty >= goodGovernment) {
+            return -1;
+        } else {
+            return handlePenalties(goodGovernment, veryBadGovernment, badGovernment, loyalistCount);
+        }
+    }
+
+    private int handlePenalties(int goodGovernment, int veryBadGovernment, int badGovernment, int loyalistCount) {
+        if (loyalistCount > veryBadGovernment) {
+            if (tories <= veryBadGovernment) {
+                return -1;
+            }
+        } else if (loyalistCount > badGovernment) {
+            if (tories <= badGovernment) {
+                return -1;
+            } else if (tories > veryBadGovernment) {
+                return 1;
+            }
+        } else {
+            if (tories > badGovernment) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    
     public ModelMessage checkForGovMgtChangeMessage() {
         final Specification spec = getSpecification();
         final int veryBadGovernment
