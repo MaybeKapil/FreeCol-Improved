@@ -61,9 +61,8 @@ import net.sf.freecol.common.resources.ResourceMapping;
 import net.sf.freecol.server.FreeColServer;
 import net.sf.freecol.server.FreeColServer.GameState;
 
-
 /**
- * The main control class for the FreeCol client.  This class both
+ * The main control class for the FreeCol client. This class both
  * starts and keeps references to the GUI and the control objects.
  */
 public final class FreeColClient {
@@ -89,7 +88,6 @@ public final class FreeColClient {
 
     /** Encapsulation of the server API. */
     private final ServerAPI serverAPI;
-
 
     /** The GUI encapsulation. */
     private final GUI gui;
@@ -132,39 +130,38 @@ public final class FreeColClient {
     /** Run in headless mode. */
     private final boolean headless;
 
-
     public FreeColClient(final InputStream splashStream,
-                         final String fontName) {
+            final String fontName) {
         this(splashStream, fontName, FreeCol.GUI_SCALE_DEFAULT, true);
     }
 
     /**
-     * Creates a new <code>FreeColClient</code>.  Creates the control
+     * Creates a new <code>FreeColClient</code>. Creates the control
      * objects.
      *
      * @param splashStream A stream to read the splash image from.
-     * @param fontName An optional override of the main font.
-     * @param scale The scale factor for gui elements.
-     * @param headless Run in headless mode.
+     * @param fontName     An optional override of the main font.
+     * @param scale        The scale factor for gui elements.
+     * @param headless     Run in headless mode.
      */
     public FreeColClient(final InputStream splashStream, final String fontName,
-                         final float scale, boolean headless) {
+            final float scale, boolean headless) {
         mapEditor = false;
         this.headless = headless
-            || System.getProperty("java.awt.headless", "false").equals("true");
+                || System.getProperty("java.awt.headless", "false").equals("true");
         if (this.headless) {
             if (!FreeColDebugger.isInDebugMode()
-                || FreeColDebugger.getDebugRunTurns() <= 0) {
+                    || FreeColDebugger.getDebugRunTurns() <= 0) {
                 fatal(Messages.message("client.headlessDebug"));
             }
         }
 
         // Get the splash screen up early on to show activity.
         gui = (this.headless) ? new GUI(this, scale)
-                              : new SwingGUI(this, scale);
+                : new SwingGUI(this, scale);
         gui.displaySplashScreen(splashStream);
 
-        // Look for base data directory.  Failure is fatal.
+        // Look for base data directory. Failure is fatal.
         File baseDirectory = FreeColDirectories.getBaseDirectory();
         FreeColDataFile baseData = null;
         String ioeMessage = null;
@@ -177,8 +174,8 @@ public final class FreeColClient {
         }
         if (baseData == null) {
             fatal(Messages.message(StringTemplate.template("client.baseData")
-                          .addName("%dir%", baseDirectory.getName()))
-                + ((ioeMessage == null) ? "" : "\n" + ioeMessage));
+                    .addName("%dir%", baseDirectory.getName()))
+                    + ((ioeMessage == null) ? "" : "\n" + ioeMessage));
         }
         ResourceManager.setBaseMapping(baseData.getResourceMapping());
 
@@ -186,7 +183,7 @@ public final class FreeColClient {
 
         serverAPI = new UserServerAPI(gui);
 
-        // Control.  Controllers expect GUI to be available.
+        // Control. Controllers expect GUI to be available.
         connectController = new ConnectController(this);
         preGameController = new PreGameController(this);
         preGameInputHandler = new PreGameInputHandler(this);
@@ -198,9 +195,9 @@ public final class FreeColClient {
         worker.start();
 
         // Load resources.
-        //   - base resources
-        //   - resources in the default "classic" ruleset,
-        //   - resources in the default actions
+        // - base resources
+        // - resources in the default "classic" ruleset,
+        // - resources in the default actions
         //
         // FIXME: probably should not need to load "classic", but there
         // are a bunch of things in there (e.g. order buttons) that first
@@ -232,103 +229,136 @@ public final class FreeColClient {
     /**
      * Starts the new <code>FreeColClient</code>, including the GUI.
      *
-     * @param size An optional window size.
-     * @param userMsg An optional message key to be displayed early.
-     * @param sound True if sounds should be played
+     * @param size             An optional window size.
+     * @param userMsg          An optional message key to be displayed early.
+     * @param sound            True if sounds should be played
      * @param showOpeningVideo Display the opening video.
-     * @param savedGame An optional saved game.
-     * @param spec If non-null, a <code>Specification</code> to use to start
-     *     a new game immediately.
+     * @param savedGame        An optional saved game.
+     * @param spec             If non-null, a <code>Specification</code> to use to
+     *                         start
+     *                         a new game immediately.
      */
+
     public void startClient(final Dimension size,
-                            final String userMsg,
-                            final boolean sound,
-                            final boolean showOpeningVideo,
-                            final File savedGame,
-                            final Specification spec) {
+            final String userMsg,
+            final boolean sound,
+            final boolean showOpeningVideo,
+            final File savedGame,
+            final Specification spec) {
+        validateHeadlessMode(savedGame, spec);
+
+        initializeClientOptions(savedGame);
+        initializeSoundController(sound);
+        initializeGUI(size);
+
+        if (savedGame != null) {
+            startSavedGame(savedGame, userMsg);
+        } else if (spec != null) {
+            startSinglePlayerGame(spec, userMsg);
+        } else if (showOpeningVideo) {
+            showOpeningVideo(userMsg);
+        } else {
+            showMainPanel(userMsg);
+        }
+
+        addShutdownHook();
+    }
+
+    private void validateHeadlessMode(File savedGame, Specification spec) {
         if (headless && savedGame == null && spec == null) {
             fatal(Messages.message("client.headlessRequires"));
         }
+    }
 
-        // Load the client options, which handle reloading the
-        // resources specified in the active mods.
-        this.clientOptions = loadClientOptions(savedGame);
-        this.clientOptions.fixClientOptions();
+    private void initializeClientOptions(File savedGame) {
+        if (!headless) {
+            clientOptions = loadClientOptions(savedGame);
+            clientOptions.fixClientOptions();
 
-        // Reset the mod resources as a result of the client option update.
-        ResourceMapping modMappings = new ResourceMapping();
-        for (FreeColModFile f : this.clientOptions.getActiveMods()) {
-            modMappings.addAll(f.getResourceMapping());
+            ResourceMapping modMappings = updateModResources();
+            ResourceManager.setModMapping(modMappings);
+            if (actionManager != null) {
+                updateActions();
+            }
         }
-        ResourceManager.setModMapping(modMappings);
-        // Update the actions, resources may have changed.
-        if (this.actionManager != null) updateActions();
+    }
 
-        // Initialize Sound (depends on client options)
-        this.soundController = new SoundController(this, sound);
+    private ResourceMapping updateModResources() {
+        ResourceMapping modMappings = new ResourceMapping();
+        for (FreeColModFile modFile : clientOptions.getActiveMods()) {
+            modMappings.addAll(modFile.getResourceMapping());
+        }
+        return modMappings;
+    }
 
-        // Start the GUI (headless-safe)
+    private void initializeSoundController(boolean sound) {
+        soundController = new SoundController(this, sound);
+    }
+
+    private void initializeGUI(Dimension size) {
         gui.hideSplashScreen();
         gui.startGUI(size);
+    }
 
-        // Now the GUI is going, either:
-        //   - load the saved game if one was supplied
-        //   - use the debug shortcut to immediately start a new game with
-        //     supplied specification
-        //   - display the opening video (which goes on to display the
-        //     main panel when it completes)
-        //   - display the main panel and let the user choose what to
-        //     do (which will often be to progress through the
-        //     NewPanel to a call to the connect controller to start a game)
-        if (savedGame != null) {
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    if (!connectController.startSavedGame(savedGame, userMsg)) {
-                        gui.showMainPanel(userMsg);
-                    }
-                });
-        } else if (spec != null) { // Debug or fast start
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    if (!connectController.startSinglePlayerGame(spec, true)) {
-                        gui.showMainPanel(userMsg);
-                    }
-                });
-        } else if (showOpeningVideo) {
-            SwingUtilities.invokeLater(() -> {
-                    gui.showOpeningVideo(userMsg);
-                });
-        } else {
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    gui.showMainPanel(userMsg);
-                });
-        }
+    private void startSavedGame(File savedGame, String userMsg) {
+        playIntroSound();
+        SwingUtilities.invokeLater(() -> {
+            if (!connectController.startSavedGame(savedGame, userMsg)) {
+                gui.showMainPanel(userMsg);
+            }
+        });
+    }
 
+    private void startSinglePlayerGame(Specification spec, String userMsg) {
+        playIntroSound();
+        SwingUtilities.invokeLater(() -> {
+            if (!connectController.startSinglePlayerGame(spec, true)) {
+                gui.showMainPanel(userMsg);
+            }
+        });
+    }
+
+    private void showOpeningVideo(String userMsg) {
+        SwingUtilities.invokeLater(() -> {
+            gui.showOpeningVideo(userMsg);
+        });
+    }
+
+    private void showMainPanel(String userMsg) {
+        SwingUtilities.invokeLater(() -> {
+            gui.showMainPanel(userMsg);
+        });
+    }
+
+    private void playIntroSound() {
+        soundController.playSound("sound.intro.general");
+    }
+
+    private void addShutdownHook() {
         String quit = FreeCol.CLIENT_THREAD + "Quit Game";
         Runtime.getRuntime().addShutdownHook(new Thread(quit) {
-                @Override
-                public void run() {
-                    getConnectController().quitGame(true);
-                }
-            });
+            @Override
+            public void run() {
+                getConnectController().quitGame(true);
+            }
+        });
     }
 
     /**
      * Loads the client options.
      * There are several sources:
-     *   1) Base options (data/base/client-options.xml)
-     *   2) Standard action manager actions
-     *   3) Saved game
-     *   4) User options
+     * 1) Base options (data/base/client-options.xml)
+     * 2) Standard action manager actions
+     * 3) Saved game
+     * 4) User options
      *
      * The base and action manager options are definitive, so they can
-     * just be added/loaded.  The others are from sources that may be
+     * just be added/loaded. The others are from sources that may be
      * out of date (i.e. options can be in the wrong group, or no longer
      * exist), so they must be merged cautiously.
      *
      * @param savedGameFile An optional saved game <code>File</code>
-     *     to load options from.
+     *                      to load options from.
      * @return The loaded <code>ClientOptions</code>.
      */
     private ClientOptions loadClientOptions(File savedGameFile) {
@@ -343,25 +373,24 @@ public final class FreeColClient {
 
         if (savedGameFile != null) {
             try {
-                FreeColSavegameFile fcsf
-                    = new FreeColSavegameFile(savedGameFile);
+                FreeColSavegameFile fcsf = new FreeColSavegameFile(savedGameFile);
                 logger.info("Merge client options from saved game: "
-                    + savedGameFile.getPath());
+                        + savedGameFile.getPath());
                 clop.merge(fcsf);
             } catch (IOException ioe) {
                 logger.log(Level.WARNING, "Could not open saved game "
-                    + savedGameFile.getPath(), ioe);
+                        + savedGameFile.getPath(), ioe);
             }
         }
 
         final File userOptions = FreeColDirectories.getClientOptionsFile();
         if (userOptions != null && userOptions.exists()) {
             logger.info("Merge client options from user options file: "
-                + userOptions.getPath());
+                    + userOptions.getPath());
             clop.merge(userOptions);
         }
 
-        //logger.info("Final client options: " + clop.toString());
+        // logger.info("Final client options: " + clop.toString());
         return clop;
     }
 
@@ -374,7 +403,6 @@ public final class FreeColClient {
         logger.log(Level.SEVERE, err);
         FreeCol.fatal(err);
     }
-
 
     // Accessors
 
@@ -447,7 +475,7 @@ public final class FreeColClient {
      * Gets the <code>FreeColServer</code> started by the client.
      *
      * @return The <code>FreeColServer</code> or <code>null</code> if no
-     *     server has been started.
+     *         server has been started.
      */
     public FreeColServer getFreeColServer() {
         return freeColServer;
@@ -472,7 +500,6 @@ public final class FreeColClient {
     public ServerAPI askServer() {
         return serverAPI;
     }
-
 
     /**
      * Gets the GUI attached to this client.
@@ -526,7 +553,7 @@ public final class FreeColClient {
      * Sets the <code>Player</code> that uses this client.
      *
      * @param player The <code>Player</code> made to represent this clients
-     *            user.
+     *               user.
      * @see #getMyPlayer()
      */
     public void setMyPlayer(Player player) {
@@ -537,7 +564,7 @@ public final class FreeColClient {
      * Gets the object keeping the current client options.
      *
      * @return The <code>ClientOptions</code> attached to this
-     *     <code>FreeColClient</code>.
+     *         <code>FreeColClient</code>.
      */
     public ClientOptions getClientOptions() {
         return clientOptions;
@@ -636,11 +663,10 @@ public final class FreeColClient {
         return headless;
     }
 
-
     // Utilities
 
     /**
-     * Updates the game actions.  Generally useful when menu actions
+     * Updates the game actions. Generally useful when menu actions
      * should change due to the current game context.
      */
     public void updateActions() {
@@ -655,7 +681,6 @@ public final class FreeColClient {
     public void addSpecificationActions(Specification specification) {
         actionManager.addSpecificationActions(specification);
     }
-
 
     /**
      * Checks if this client is the game admin.
@@ -677,7 +702,7 @@ public final class FreeColClient {
      */
     public boolean canSaveCurrentGame() {
         return freeColServer != null
-            && (isAdmin() || freeColServer.getGameState() != GameState.IN_GAME);
+                && (isAdmin() || freeColServer.getGameState() != GameState.IN_GAME);
     }
 
     /**
@@ -687,9 +712,9 @@ public final class FreeColClient {
      */
     public boolean currentPlayerIsMyPlayer() {
         return inGame
-            && game != null
-            && player != null
-            && player.equals(game.getCurrentPlayer());
+                && game != null
+                && player != null
+                && player.equals(game.getCurrentPlayer());
     }
 
     /**
@@ -700,8 +725,8 @@ public final class FreeColClient {
      */
     public int getAnimationSpeed(Player player) {
         String key = (getMyPlayer() == player)
-            ? ClientOptions.MOVE_ANIMATION_SPEED
-            : ClientOptions.ENEMY_MOVE_ANIMATION_SPEED;
+                ? ClientOptions.MOVE_ANIMATION_SPEED
+                : ClientOptions.ENEMY_MOVE_ANIMATION_SPEED;
         return getClientOptions().getInteger(key);
     }
 
@@ -712,8 +737,8 @@ public final class FreeColClient {
      */
     public List<Colony> getMySortedColonies() {
         return (clientOptions == null || player == null)
-            ? Collections.<Colony>emptyList()
-            : clientOptions.getSortedColonies(player);
+                ? Collections.<Colony>emptyList()
+                : clientOptions.getSortedColonies(player);
     }
 
     /**
@@ -767,7 +792,8 @@ public final class FreeColClient {
      * @param turns The number of turns to skip.
      */
     public void skipTurns(int turns) {
-        if (freeColServer == null) return;
+        if (freeColServer == null)
+            return;
         if (turns <= 0) {
             freeColServer.getInGameController().setSkippedTurns(0);
             return;
@@ -781,7 +807,8 @@ public final class FreeColClient {
      * Quits the application.
      */
     public void askToQuit() {
-        if (gui.confirm("quitDialog.areYouSure.text", "ok", "cancel")) quit();
+        if (gui.confirm("quitDialog.areYouSure.text", "ok", "cancel"))
+            quit();
     }
 
     /**
@@ -803,14 +830,15 @@ public final class FreeColClient {
         getConnectController().quitGame(isSinglePlayer());
         try { // delete outdated autosave files
             long validPeriod = 1000L * 24L * 60L * 60L // days to ms
-                * clientOptions.getInteger(ClientOptions.AUTOSAVE_VALIDITY);
+                    * clientOptions.getInteger(ClientOptions.AUTOSAVE_VALIDITY);
             long timeNow = System.currentTimeMillis();
             File autoSave = FreeColDirectories.getAutosaveDirectory();
             String[] flist;
             if (validPeriod != 0L && autoSave != null
-                && (flist = autoSave.list()) != null) {
+                    && (flist = autoSave.list()) != null) {
                 for (String f : flist) {
-                    if (!f.endsWith("." + FreeCol.FREECOL_SAVE_EXTENSION)) continue;
+                    if (!f.endsWith("." + FreeCol.FREECOL_SAVE_EXTENSION))
+                        continue;
                     // delete files which are older than user option allows
                     File saveGameFile = new File(autoSave, f);
                     if (saveGameFile.lastModified() + validPeriod < timeNow) {
