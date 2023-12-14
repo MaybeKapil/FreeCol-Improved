@@ -61,9 +61,8 @@ import net.sf.freecol.common.resources.ResourceMapping;
 import net.sf.freecol.server.FreeColServer;
 import net.sf.freecol.server.FreeColServer.GameState;
 
-
 /**
- * The main control class for the FreeCol client.  This class both
+ * The main control class for the FreeCol client. This class both
  * starts and keeps references to the GUI and the control objects.
  */
 public final class FreeColClient {
@@ -89,7 +88,6 @@ public final class FreeColClient {
 
     /** Encapsulation of the server API. */
     private final ServerAPI serverAPI;
-
 
     /** The GUI encapsulation. */
     private final GUI gui;
@@ -132,14 +130,13 @@ public final class FreeColClient {
     /** Run in headless mode. */
     private final boolean headless;
 
-
     public FreeColClient(final InputStream splashStream,
                          final String fontName) {
         this(splashStream, fontName, FreeCol.GUI_SCALE_DEFAULT, true);
     }
 
     /**
-     * Creates a new <code>FreeColClient</code>.  Creates the control
+     * Creates a new <code>FreeColClient</code>. Creates the control
      * objects.
      *
      * @param splashStream A stream to read the splash image from.
@@ -292,72 +289,112 @@ public final class FreeColClient {
                             final boolean showOpeningVideo,
                             final File savedGame,
                             final Specification spec) {
+        validateHeadlessMode(savedGame, spec);
+
+        initializeClientOptions(savedGame);
+        updateResourceManagerModMapping();
+        
+        // Update the actions, resources may have changed.
+        if (this.actionManager != null) {
+            updateActions();
+        }    
+        
+        initializeSoundController(sound);
+        initializeGUI(size);
+
+        if (savedGame != null) {
+            startSavedGame(savedGame, userMsg);
+        } else if (spec != null) { // Debug or fast start
+            startSinglePlayerGame(spec, userMsg);
+        } else if (showOpeningVideo) {
+            showOpeningVideo(userMsg);
+        } else {
+            showMainPanel(userMsg);
+        }
+
+        registerQuitGameShutdownHook();
+    }
+
+    private void validateHeadlessMode(File savedGame, Specification spec) {
         if (headless && savedGame == null && spec == null) {
             fatal(Messages.message("client.headlessRequires"));
         }
+    }
 
-        // Load the client options, which handle reloading the
-        // resources specified in the active mods.
+	// Load the client options, which handle reloading the
+    // resources specified in the active mods.
+    private void initializeClientOptions(File savedGame) {        
         this.clientOptions = loadClientOptions(savedGame);
         this.clientOptions.fixClientOptions();
-
-        // Reset the mod resources as a result of the client option update.
-        ResourceMapping modMappings = new ResourceMapping();
-        for (FreeColModFile f : this.clientOptions.getActiveMods()) {
-            modMappings.addAll(f.getResourceMapping());
-        }
+	}
+	
+	private void updateResourceManagerModMapping() {
+        ResourceMapping modMappings = resetModResources();
         ResourceManager.setModMapping(modMappings);
-        // Update the actions, resources may have changed.
-        if (this.actionManager != null) updateActions();
+    }
+    
+	// Reset the mod resources as a result of the client option update.
+    private ResourceMapping resetModResources() {
+        ResourceMapping modMappings = new ResourceMapping();
+        for (FreeColModFile modFile : this.clientOptions.getActiveMods()) {
+            modMappings.addAll(modFile.getResourceMapping());
+        }
+        return modMappings;
+    }
 
-        // Initialize Sound (depends on client options)
+	// Initialize Sound (depends on client options)
+    private void initializeSoundController(boolean sound) {
         this.soundController = new SoundController(this, sound);
+    }
 
-        // Start the GUI (headless-safe)
+	// Start the GUI (headless-safe)
+    private void initializeGUI(Dimension size) {
         gui.hideSplashScreen();
         gui.startGUI(size);
+    }
 
-        // Now the GUI is going, either:
-        //   - load the saved game if one was supplied
-        //   - use the debug shortcut to immediately start a new game with
-        //     supplied specification
-        //   - display the opening video (which goes on to display the
-        //     main panel when it completes)
-        //   - display the main panel and let the user choose what to
-        //     do (which will often be to progress through the
-        //     NewPanel to a call to the connect controller to start a game)
-        if (savedGame != null) {
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    if (!connectController.startSavedGame(savedGame, userMsg)) {
-                        gui.showMainPanel(userMsg);
-                    }
-                });
-        } else if (spec != null) { // Debug or fast start
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    if (!connectController.startSinglePlayerGame(spec, true)) {
-                        gui.showMainPanel(userMsg);
-                    }
-                });
-        } else if (showOpeningVideo) {
-            SwingUtilities.invokeLater(() -> {
-                    gui.showOpeningVideo(userMsg);
-                });
-        } else {
-            soundController.playSound("sound.intro.general");
-            SwingUtilities.invokeLater(() -> {
-                    gui.showMainPanel(userMsg);
-                });
-        }
+    private void startSavedGame(File savedGame, String userMsg) {
+        playIntroSound();
+        SwingUtilities.invokeLater(() -> {
+            if (!connectController.startSavedGame(savedGame, userMsg)) {
+                gui.showMainPanel(userMsg);
+            }
+        });
+    }
 
+    private void startSinglePlayerGame(Specification spec, String userMsg) {
+        playIntroSound();
+        SwingUtilities.invokeLater(() -> {
+            if (!connectController.startSinglePlayerGame(spec, true)) {
+                gui.showMainPanel(userMsg);
+            }
+        });
+    }
+
+    private void showOpeningVideo(String userMsg) {
+        SwingUtilities.invokeLater(() -> {
+            gui.showOpeningVideo(userMsg);
+        });
+    }
+
+    private void showMainPanel(String userMsg) {
+        SwingUtilities.invokeLater(() -> {
+            gui.showMainPanel(userMsg);
+        });
+    }
+
+    private void playIntroSound() {
+        soundController.playSound("sound.intro.general");
+    }
+
+    private void registerQuitGameShutdownHook() {
         String quit = FreeCol.CLIENT_THREAD + "Quit Game";
         Runtime.getRuntime().addShutdownHook(new Thread(quit) {
-                @Override
-                public void run() {
-                    getConnectController().quitGame(true);
-                }
-            });
+            @Override
+            public void run() {
+                getConnectController().quitGame(true);
+            }
+        });
     }
 
     /**
@@ -369,7 +406,7 @@ public final class FreeColClient {
      *   4) User options
      *
      * The base and action manager options are definitive, so they can
-     * just be added/loaded.  The others are from sources that may be
+     * just be added/loaded. The others are from sources that may be
      * out of date (i.e. options can be in the wrong group, or no longer
      * exist), so they must be merged cautiously.
      *
@@ -407,7 +444,7 @@ public final class FreeColClient {
             clop.merge(userOptions);
         }
 
-        //logger.info("Final client options: " + clop.toString());
+        // logger.info("Final client options: " + clop.toString());
         return clop;
     }
 
@@ -420,7 +457,6 @@ public final class FreeColClient {
         logger.log(Level.SEVERE, err);
         FreeCol.fatal(err);
     }
-
 
     // Accessors
 
@@ -493,7 +529,7 @@ public final class FreeColClient {
      * Gets the <code>FreeColServer</code> started by the client.
      *
      * @return The <code>FreeColServer</code> or <code>null</code> if no
-     *     server has been started.
+     *         server has been started.
      */
     public FreeColServer getFreeColServer() {
         return freeColServer;
@@ -518,7 +554,6 @@ public final class FreeColClient {
     public ServerAPI askServer() {
         return serverAPI;
     }
-
 
     /**
      * Gets the GUI attached to this client.
@@ -572,7 +607,7 @@ public final class FreeColClient {
      * Sets the <code>Player</code> that uses this client.
      *
      * @param player The <code>Player</code> made to represent this clients
-     *            user.
+     *               user.
      * @see #getMyPlayer()
      */
     public void setMyPlayer(Player player) {
@@ -682,11 +717,10 @@ public final class FreeColClient {
         return headless;
     }
 
-
     // Utilities
 
     /**
-     * Updates the game actions.  Generally useful when menu actions
+     * Updates the game actions. Generally useful when menu actions
      * should change due to the current game context.
      */
     public void updateActions() {
@@ -701,7 +735,6 @@ public final class FreeColClient {
     public void addSpecificationActions(Specification specification) {
         actionManager.addSpecificationActions(specification);
     }
-
 
     /**
      * Checks if this client is the game admin.
@@ -813,7 +846,9 @@ public final class FreeColClient {
      * @param turns The number of turns to skip.
      */
     public void skipTurns(int turns) {
-        if (freeColServer == null) return;
+        if (freeColServer == null) {
+            return;
+        }
         if (turns <= 0) {
             freeColServer.getInGameController().setSkippedTurns(0);
             return;
@@ -827,7 +862,9 @@ public final class FreeColClient {
      * Quits the application.
      */
     public void askToQuit() {
-        if (gui.confirm("quitDialog.areYouSure.text", "ok", "cancel")) quit();
+        if (gui.confirm("quitDialog.areYouSure.text", "ok", "cancel")) {
+            quit();
+        }
     }
 
     /**
