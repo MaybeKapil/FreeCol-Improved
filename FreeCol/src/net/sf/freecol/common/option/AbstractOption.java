@@ -207,76 +207,83 @@ public abstract class AbstractOption<T> extends FreeColObject
     // - The default value does not need to be written in general.
     // - The value *must* be written by the implementing subclass.
 
-    /**
-     * General option reader routine.
-     *
-     * @param xr The <code>FreeColXMLReader</code> to read from.
-     * @return An option.
-     */
-    protected AbstractOption readOption(FreeColXMLReader xr) throws XMLStreamException {
-        final Specification spec = getSpecification();
-        final String tag = xr.getLocalName();
-        AbstractOption option = null;
+/**
+ * General option reader routine.
+ *
+ * @param xr The <code>FreeColXMLReader</code> to read from.
+ * @return An option.
+ */
+protected AbstractOption readOption(FreeColXMLReader xr) throws XMLStreamException {
+    final Specification spec = getSpecification();
+    final String tag = xr.getLocalName();
+    AbstractOption option = null;
 
-        if (ACTION_TAG.equals(tag)) {
-            // FIXME: load FreeColActions from client options?
-            logger.finest("Skipping action " + xr.readId());
-            xr.nextTag();
+    if (ACTION_TAG.equals(tag)) {
+        skipAction(xr);
 
-        } else if (AbstractUnitOption.getXMLElementTagName().equals(tag)) {
-            option = new AbstractUnitOption(spec);
+    } else {
+        option = createOptionByTag(tag, spec);
+    }
 
-        } else if (AudioMixerOption.getXMLElementTagName().equals(tag)) {
-            option = new AudioMixerOption(spec);
+    if (option != null) option.readFromXML(xr);
+    return option;
+}
 
-        } else if (BooleanOption.getXMLElementTagName().equals(tag)) {
-            option = new BooleanOption(spec);
+/**
+ * Skips the action tag.
+ *
+ * @param xr The <code>FreeColXMLReader</code> to read from.
+ * @throws XMLStreamException if there is an error reading the XML stream.
+ */
+private void skipAction(FreeColXMLReader xr) throws XMLStreamException {
+    // FIXME: load FreeColActions from client options?
+    logger.finest("Skipping action " + xr.readId());
+    xr.nextTag();
+}
 
-        } else if (FileOption.getXMLElementTagName().equals(tag)) {
-            option = new FileOption(spec);
-
-        } else if (IntegerOption.getXMLElementTagName().equals(tag)) {
-            option = new IntegerOption(spec);
-
-        } else if (LanguageOption.getXMLElementTagName().equals(tag)) {
-            option = new LanguageOption(spec);
-
-        } else if (ModListOption.getXMLElementTagName().equals(tag)) {
-            option = new ModListOption(spec);
-
-        } else if (ModOption.getXMLElementTagName().equals(tag)) {
-            option = new ModOption(spec);
-
-        } else if (OptionGroup.getXMLElementTagName().equals(tag)) {
-            option = new OptionGroup(spec);
-
-        } else if (PercentageOption.getXMLElementTagName().equals(tag)) {
-            option = new PercentageOption(spec);
-
-        } else if (RangeOption.getXMLElementTagName().equals(tag)) {
-            option = new RangeOption(spec);
-
-        } else if (SelectOption.getXMLElementTagName().equals(tag)) {
-            option = new SelectOption(spec);
-
-        } else if (StringOption.getXMLElementTagName().equals(tag)) {
-            option = new StringOption(spec);
-
-        } else if (UnitListOption.getXMLElementTagName().equals(tag)) {
-            option = new UnitListOption(spec);
-
-        } else if (UnitTypeOption.getXMLElementTagName().equals(tag)) {
-            option = new UnitTypeOption(spec);
-
-        } else if (TextOption.getXMLElementTagName().equals(tag)) {
-            option = new TextOption(spec);
-
-        } else {
+/**
+ * Creates an option based on the given tag and specification.
+ *
+ * @param tag  The XML element tag.
+ * @param spec The specification.
+ * @return The created option.
+ */
+private AbstractOption createOptionByTag(String tag, Specification spec) {
+    switch (tag) {
+        case AbstractUnitOption.getXMLElementTagName():
+            return new AbstractUnitOption(spec);
+        case AudioMixerOption.getXMLElementTagName():
+            return new AudioMixerOption(spec);
+        case BooleanOption.getXMLElementTagName():
+            return new BooleanOption(spec);
+        case FileOption.getXMLElementTagName():
+            return new FileOption(spec);
+        case IntegerOption.getXMLElementTagName():
+            return new IntegerOption(spec);
+        case LanguageOption.getXMLElementTagName():
+            return new LanguageOption(spec);
+        case ModListOption.getXMLElementTagName():
+            return new ModListOption(spec);
+        case ModOption.getXMLElementTagName():
+            return new ModOption(spec);
+        case OptionGroup.getXMLElementTagName():
+            return new OptionGroup(spec);
+        case PercentageOption.getXMLElementTagName():
+            return new PercentageOption(spec);
+        case RangeOption.getXMLElementTagName():
+            return new RangeOption(spec);
+        case SelectOption.getXMLElementTagName():
+            return new SelectOption(spec);
+        case StringOption.getXMLElementTagName():
+            return new StringOption(spec);
+        case UnitListOption.getXMLElementTagName():
+            return new UnitListOption(spec);
+        case UnitTypeOption.getXMLElementTagName():
+            return new UnitTypeOption(spec);
+        case TextOption.getXMLElementTagName():
+            return new TextOption(spec);
+        default:
             logger.warning("Not an option type: " + tag);
-            xr.nextTag();
-        }
-
-        if (option != null) option.readFromXML(xr);
-        return option;
+            return null;
     }
 }
