@@ -17163,11 +17163,13 @@ java.lang.invoke.MethodHandles$Lookup
 net.sf.freecol.common.util.LogBuilder
 java.util.Collection
 java.lang.invoke.MethodHandles
+[Lnet.sf.freecol.common.model.ModelMessage$MessageType;
 java.util.Set
 net.sf.freecol.common.model.BuildableType
 net.sf.freecol.common.model.Market
 java.util.logging.Logger
 java.util.stream.Collectors
+[Ljava.lang.String;
 java.util.stream.DoubleStream
 java.util.List
 net.sf.freecol.common.model.Specification
@@ -17192,6 +17194,7 @@ net.sf.freecol.common.model.Locatable
 java.util.HashMap
 java.lang.ClassCastException
 java.lang.Iterable
+[I
 java.util.ArrayList
 java.util.logging.Level
 java.util.HashSet
