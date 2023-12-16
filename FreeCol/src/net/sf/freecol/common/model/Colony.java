@@ -947,60 +947,79 @@ public class Colony extends Settlement implements Nameable, TradeLocation {
      * @return A <code>NoBuildReason</code> value decribing the failure,
      *     including <code>NoBuildReason.NONE</code> on success.
      */
-    public NoBuildReason getNoBuildReason(BuildableType buildableType,
-                                          List<BuildableType> assumeBuilt) {
-        if (buildableType == null) {
-            return NoBuildReason.NOT_BUILDING;
-        } else if (!buildableType.needsGoodsToBuild()) {
-            return NoBuildReason.NOT_BUILDABLE;
-        } else if (buildableType.getRequiredPopulation() > getUnitCount()) {
-            return NoBuildReason.POPULATION_TOO_SMALL;
-        } else if (buildableType.hasAbility(Ability.COASTAL_ONLY)
-            && !getTile().isCoastland()) {
-            return NoBuildReason.COASTAL;
-        } else {
-            if (!all(buildableType.getRequiredAbilities().entrySet(),
-                    e -> e.getValue() == hasAbility(e.getKey()))) {
-                return NoBuildReason.MISSING_ABILITY;
-            }
-            if (!all(buildableType.getLimits(), l -> l.evaluate(this))) {
-                return NoBuildReason.LIMIT_EXCEEDED;
-            }
-        }
-        if (assumeBuilt == null) {
-            assumeBuilt = Collections.<BuildableType>emptyList();
-        }
-        if (buildableType instanceof BuildingType) {
-            BuildingType newBuildingType = (BuildingType) buildableType;
-            Building colonyBuilding = this.getBuilding(newBuildingType);
-            if (colonyBuilding == null) {
-                // the colony has no similar building yet
-                BuildingType from = newBuildingType.getUpgradesFrom();
-                if (from != null && !assumeBuilt.contains(from)) {
-                    // we are trying to build an advanced factory, we
-                    // should build lower level shop first
-                    return NoBuildReason.WRONG_UPGRADE;
-                }
-            } else {
-                // a building of the same family already exists
-                BuildingType from = colonyBuilding.getType().getUpgradesTo();
-                if (from != newBuildingType && !assumeBuilt.contains(from)) {
-                    // the existing building's next upgrade is not the
-                    // new one we want to build
-                    return NoBuildReason.WRONG_UPGRADE;
-                }
-            }
-        } else if (buildableType instanceof UnitType) {
-            // Non-person units need a BUILD ability, present or assumed.
-            if (!buildableType.hasAbility(Ability.PERSON)
-                && !hasAbility(Ability.BUILD, buildableType)
-                && none(assumeBuilt, bt -> bt.hasAbility(Ability.BUILD,
-                        buildableType))) {
-                return NoBuildReason.MISSING_BUILD_ABILITY;
-            }
-        }
-        return NoBuildReason.NONE;
+    public NoBuildReason getNoBuildReason(BuildableType buildableType, List<BuildableType> assumeBuilt) {
+    if (buildableType == null) {
+        return NoBuildReason.NOT_BUILDING;
+    } else if (!buildableType.needsGoodsToBuild()) {
+        return NoBuildReason.NOT_BUILDABLE;
+    } else if (buildableType.getRequiredPopulation() > getUnitCount()) {
+        return NoBuildReason.POPULATION_TOO_SMALL;
+    } else if (buildableType.hasAbility(Ability.COASTAL_ONLY) && !getTile().isCoastland()) {
+        return NoBuildReason.COASTAL;
+    } else {
+        return checkForBuildReason(buildableType, assumeBuilt);
     }
+}
+
+private NoBuildReason checkForBuildReason(BuildableType buildableType, List<BuildableType> assumeBuilt) {
+    if (!checkRequiredAbilities(buildableType)) {
+        return NoBuildReason.MISSING_ABILITY;
+    }
+    if (!checkLimits(buildableType)) {
+        return NoBuildReason.LIMIT_EXCEEDED;
+    }
+    if (assumeBuilt == null) {
+        assumeBuilt = Collections.emptyList();
+    }
+    if (buildableType instanceof BuildingType) {
+        return checkBuildingType(buildableType, assumeBuilt);
+    } else if (buildableType instanceof UnitType) {
+        return checkUnitType(buildableType, assumeBuilt);
+    }
+    return NoBuildReason.NONE;
+}
+
+private boolean checkRequiredAbilities(BuildableType buildableType) {
+    return all(buildableType.getRequiredAbilities().entrySet(), e -> e.getValue() == hasAbility(e.getKey()));
+}
+
+private boolean checkLimits(BuildableType buildableType) {
+    return all(buildableType.getLimits(), l -> l.evaluate(this));
+}
+
+private NoBuildReason checkBuildingType(BuildableType buildableType, List<BuildableType> assumeBuilt) {
+    BuildingType newBuildingType = (BuildingType) buildableType;
+    Building colonyBuilding = this.getBuilding(newBuildingType);
+    if (colonyBuilding == null) {
+        return checkNewBuildingType(newBuildingType, assumeBuilt);
+    } else {
+        return checkExistingBuildingType(newBuildingType, colonyBuilding, assumeBuilt);
+    }
+}
+
+private NoBuildReason checkNewBuildingType(BuildingType newBuildingType, List<BuildableType> assumeBuilt) {
+    BuildingType from = newBuildingType.getUpgradesFrom();
+    if (from != null && !assumeBuilt.contains(from)) {
+        return NoBuildReason.WRONG_UPGRADE;
+    }
+    return NoBuildReason.NONE;
+}
+
+private NoBuildReason checkExistingBuildingType(BuildingType newBuildingType, Building colonyBuilding, List<BuildableType> assumeBuilt) {
+    BuildingType from = colonyBuilding.getType().getUpgradesTo();
+    if (from != newBuildingType && !assumeBuilt.contains(from)) {
+        return NoBuildReason.WRONG_UPGRADE;
+    }
+    return NoBuildReason.NONE;
+}
+
+private NoBuildReason checkUnitType(BuildableType buildableType, List<BuildableType> assumeBuilt) {
+    if (!buildableType.hasAbility(Ability.PERSON) && !hasAbility(Ability.BUILD, buildableType)
+            && none(assumeBuilt, bt -> bt.hasAbility(Ability.BUILD, buildableType))) {
+        return NoBuildReason.MISSING_BUILD_ABILITY;
+    }
+    return NoBuildReason.NONE;
+}
 
     /**
      * Returns the price for the remaining hammers and tools for the
