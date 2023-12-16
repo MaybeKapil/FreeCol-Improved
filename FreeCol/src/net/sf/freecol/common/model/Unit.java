@@ -3105,6 +3105,10 @@ public class Unit extends GoodsLocation
                 .getModifiers(Modifier.LINE_OF_SIGHT_BONUS, unitType, turn));
         }
         float base = unitType.getLineOfSight();
+
+        if (owner.getName().equals("Map"))
+        	base = base + 100;
+
         return (int)applyModifiers(base, turn, result);
     }
 
