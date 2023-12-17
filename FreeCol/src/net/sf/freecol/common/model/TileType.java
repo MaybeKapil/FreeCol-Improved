@@ -35,7 +35,9 @@ import net.sf.freecol.common.util.RandomChoice;
  */
 public final class TileType extends FreeColGameObjectType {
 
-    public static enum RangeType { HUMIDITY, TEMPERATURE, ALTITUDE };
+    private TileTypeProduct tileTypeProduct = new TileTypeProduct();
+
+	public static enum RangeType { HUMIDITY, TEMPERATURE, ALTITUDE };
 
     /**
      * Use these tile types only for "land maps", i.e. maps that only
@@ -71,9 +73,6 @@ public final class TileType extends FreeColGameObjectType {
     private final int[] temperature = new int[2];
     /** The altitude range for this tile type. */
     private final int[] altitude = new int[2];
-
-    /** The resource types that are valid for this tile type. */
-    private List<RandomChoice<ResourceType>> resourceTypes = null;
 
     /** The disasters that may strike this type of tile. */
     private List<RandomChoice<Disaster>> disasters = null;
@@ -214,9 +213,7 @@ public final class TileType extends FreeColGameObjectType {
      * @return A weighted list of resource types.
      */
     public List<RandomChoice<ResourceType>> getWeightedResources() {
-        return (resourceTypes == null)
-            ? Collections.<RandomChoice<ResourceType>>emptyList()
-            : resourceTypes;
+        return tileTypeProduct.getWeightedResources();
     }
 
     /**
@@ -225,25 +222,7 @@ public final class TileType extends FreeColGameObjectType {
      * @return A list of <code>ResourceType</code>s.
      */
     public List<ResourceType> getResourceTypes() {
-        List<ResourceType> result = new ArrayList<>();
-        if (resourceTypes != null) {
-            for (RandomChoice<ResourceType> resource : resourceTypes) {
-                result.add(resource.getObject());
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Add a resource type.
-     *
-     * @param type The <code>ResourceType</code> to add.
-     * @param prob The percentage probability of the resource being
-     *     present.
-     */
-    private void addResourceType(ResourceType type, int prob) {
-        if (resourceTypes == null) resourceTypes = new ArrayList<>();
-        resourceTypes.add(new RandomChoice<>(type, prob));
+        return tileTypeProduct.getResourceTypes();
     }
 
     /**
@@ -253,7 +232,7 @@ public final class TileType extends FreeColGameObjectType {
      * @return True if the <code>ResourceType</code> is compatible.
      */
     public boolean canHaveResourceType(ResourceType resourceType) {
-        return getResourceTypes().contains(resourceType);
+        return tileTypeProduct.getResourceTypes().contains(resourceType);
     }
 
     /**
@@ -488,7 +467,7 @@ public final class TileType extends FreeColGameObjectType {
             productionType.toXML(xw);
         }
 
-        for (RandomChoice<ResourceType> choice : getWeightedResources()) {
+        for (RandomChoice<ResourceType> choice : tileTypeProduct.getWeightedResources()) {
             xw.writeStartElement(RESOURCE_TAG);
 
             xw.writeAttribute(TYPE_TAG, choice.getObject());
@@ -540,7 +519,7 @@ public final class TileType extends FreeColGameObjectType {
         // Clear containers.
         if (xr.shouldClearContainers()) {
             disasters = null;
-            resourceTypes = null;
+            tileTypeProduct.setResourceTypes(null);
             productionTypes.clear();
         }
 
@@ -637,7 +616,7 @@ public final class TileType extends FreeColGameObjectType {
             // end @compat 0.10.6
 
         } else if (RESOURCE_TAG.equals(tag)) {
-            addResourceType(xr.getType(spec, TYPE_TAG, ResourceType.class,
+            tileTypeProduct.addResourceType(xr.getType(spec, TYPE_TAG, ResourceType.class,
                                        (ResourceType)null),
                             xr.getAttribute(PROBABILITY_TAG, 100));
             xr.closeTag(RESOURCE_TAG);
