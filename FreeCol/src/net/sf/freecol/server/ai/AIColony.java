@@ -612,57 +612,77 @@ public class AIColony extends AIObject implements PropertyChangeListener {
      * @param lb A <code>LogBuilder</code> to log to.
      */
     private void stealTiles(LogBuilder lb) {
-        final Specification spec = getSpecification();
         final Tile tile = colony.getTile();
-        final Player player = colony.getOwner();
-        boolean hasDefender = any(tile.getUnitList(),
-            u -> u.isDefensiveUnit()
-                && getAIUnit(u).getMission(DefendSettlementMission.class) != null);
-        if (!hasDefender) return;
+        if (!hasDefender(tile)) return;
 
-        // What goods are really needed?
-        List<GoodsType> needed = spec.getRawBuildingGoodsTypeList().stream()
-            .filter(gt -> colony.getTotalProductionOf(gt) <= 0)
-            .collect(Collectors.toList());
+        List<GoodsType> needed = determineNeededGoods();
 
-        // If a tile can be stolen, do so if already at war with the
-        // owner or if it is the best one available.
-        UnitType unitType = spec.getDefaultUnitType(player);
-        Tile steal = null;
-        double score = 1.0;
-        for (Tile t : tile.getSurroundingTiles(1)) {
-            Player owner = t.getOwner();
-            if (owner == null || owner == player
-                || owner.isEuropean()
-                || !player.canClaimForSettlement(t)) continue;
-            if (owner.atWarWith(player)) {
+        UnitType unitType = getSpecification().getDefaultUnitType(colony.getOwner());
+        Tile steal = findBestTileToSteal(needed, unitType);
+
+        if (steal != null) {
+            handleWarTileStealing(steal, colony.getOwner(), lb);
+        }
+    }
+
+    private boolean hasDefender(Tile tile) {
+        return any(tile.getUnitList(),
+                u -> u.isDefensiveUnit()
+                    && getAIUnit(u).getMission(DefendSettlementMission.class) != null);
+    }
+
+    private List<GoodsType> determineNeededGoods() {
+        return getSpecification().getRawBuildingGoodsTypeList().stream()
+                .filter(gt -> colony.getTotalProductionOf(gt) <= 0)
+                .collect(Collectors.toList());
+    }
+
+    private boolean canStealTile(Tile t, Player player) {
+        return t.getOwner() != null
+            && t.getOwner() != player
+            && !t.getOwner().isEuropean()
+            && player.canClaimForSettlement(t);
+    }
+
+    private void handleWarTileStealing(Tile t, Player player, LogBuilder lb) {
+        if (t.getOwner().atWarWith(player)
+                && AIMessage.askClaimLand(t, this, NetworkConstants.STEAL_LAND)
+                && player.owns(t)) {
+            lb.add(", stole tile ", t,
+                  " from hostile ", t.getOwner().getName());
+        } else {
+            double score = calculateTileScore(t, determineNeededGoods(), getSpecification().getDefaultUnitType(player));
+            if (score > 1.0) {
                 if (AIMessage.askClaimLand(t, this, NetworkConstants.STEAL_LAND)
                     && player.owns(t)) {
-                    lb.add(", stole tile ", t,
-                          " from hostile ", owner.getName());
-                }
-            } else {
-                // Pick the best tile to steal, considering mainly the
-                // building goods needed, but including food at a lower
-                // weight.
-                double s = needed.stream()
-                        .mapToInt(gt -> t.getPotentialProduction(gt, unitType)).sum()
-                    + spec.getFoodGoodsTypeList().stream()
-                        .mapToDouble(ft -> 0.1 * t.getPotentialProduction(ft, unitType)).sum();
-                if (s > score) {
-                    score = s;
-                    steal = t;
+                    lb.add(", stole tile ", t, " (score = ", score,
+                          ") from ", t.getOwner().getName());
                 }
             }
         }
-        if (steal != null) {
-            Player owner = steal.getOwner();
-            if (AIMessage.askClaimLand(steal, this, NetworkConstants.STEAL_LAND)
-                && player.owns(steal)) {
-                lb.add(", stole tile ", steal, " (score = ", score,
-                      ") from ", owner.getName());
+    }
+
+    private double calculateTileScore(Tile t, List<GoodsType> needed, UnitType unitType) {
+        return needed.stream()
+                .mapToInt(gt -> t.getPotentialProduction(gt, unitType)).sum()
+            + getSpecification().getFoodGoodsTypeList().stream()
+                .mapToDouble(ft -> 0.1 * t.getPotentialProduction(ft, unitType)).sum();
+    }
+
+    private Tile findBestTileToSteal(List<GoodsType> needed, UnitType unitType) {
+        Tile bestTile = null;
+        double highestScore = 1.0;
+
+        for (Tile t : colony.getTile().getSurroundingTiles(1)) {
+            if (canStealTile(t, colony.getOwner())) {
+                double score = calculateTileScore(t, needed, unitType);
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestTile = t;
+                }
             }
         }
+        return bestTile;
     }
 
     /**
