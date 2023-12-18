@@ -1394,81 +1394,7 @@ private NoBuildReason checkUnitType(BuildableType buildableType, List<BuildableT
      * @param unitCount The proposed population for the colony.
      * @return 1, 0 or -1.
      */
-    
     public int governmentChange(int unitCount) {
-        final Specification spec = getSpecification();
-        final int veryBadGovernment = spec.getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
-        final int badGovernment = spec.getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
-        final int veryGoodGovernment = spec.getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
-        final int goodGovernment = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
-
-        int rebelPercent = calculateSoLPercentage(unitCount, getLiberty());
-        int rebelCount = calculateRebels(unitCount, rebelPercent);
-        int loyalistCount = unitCount - rebelCount;
-
-        return determineGovernmentChange(rebelPercent, veryGoodGovernment, goodGovernment, 
-                                         veryBadGovernment, badGovernment, loyalistCount);
-    }
-
-    private int determineGovernmentChange(int rebelPercent, int veryGoodGovernment, int goodGovernment,
-                                          int veryBadGovernment, int badGovernment, int loyalistCount) {
-        int result = 0;
-
-        if (rebelPercent >= veryGoodGovernment) {
-            result = handleVeryGoodGovernment(veryGoodGovernment);
-        } else if (rebelPercent >= goodGovernment) {
-            result = handleGoodGovernment(veryGoodGovernment,goodGovernment);
-        } else {
-            result = handleNormalGovernment(goodGovernment, veryBadGovernment, badGovernment, loyalistCount);
-        }
-
-        return result;
-    }
-
-    private int handleVeryGoodGovernment(int veryGoodGovernment) {
-        if (sonsOfLiberty < veryGoodGovernment) {
-            return 1;
-        }
-        return 0;
-    }
-
-    private int handleGoodGovernment(int veryGoodGovernment,int goodGovernment ) {
-        if (sonsOfLiberty >= veryGoodGovernment) {
-            return -1;
-        } else if (sonsOfLiberty < goodGovernment) {
-            return 1;
-        }
-        return 0;
-    }
-
-    private int handleNormalGovernment(int goodGovernment, int veryBadGovernment, int badGovernment, int loyalistCount) {
-        if (sonsOfLiberty >= goodGovernment) {
-            return -1;
-        } else {
-            return handlePenalties(goodGovernment, veryBadGovernment, badGovernment, loyalistCount);
-        }
-    }
-
-    private int handlePenalties(int goodGovernment, int veryBadGovernment, int badGovernment, int loyalistCount) {
-        if (loyalistCount > veryBadGovernment) {
-            if (tories <= veryBadGovernment) {
-                return -1;
-            }
-        } else if (loyalistCount > badGovernment) {
-            if (tories <= badGovernment) {
-                return -1;
-            } else if (tories > veryBadGovernment) {
-                return 1;
-            }
-        } else {
-            if (tories > badGovernment) {
-                return 1;
-            }
-        }
-        return 0;
-    }
-    
-    public ModelMessage checkForGovMgtChangeMessage() {
         final Specification spec = getSpecification();
         final int veryBadGovernment
             = spec.getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
@@ -1479,58 +1405,130 @@ private NoBuildReason checkUnitType(BuildableType buildableType, List<BuildableT
         final int goodGovernment
             = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
 
-        String msgId = null;
-        int number = 0;
-        ModelMessage.MessageType msgType = ModelMessage.MessageType.GOVERNMENT_EFFICIENCY;
-        if (sonsOfLiberty >= veryGoodGovernment) {
-            // there are no tories left
-            if (oldSonsOfLiberty < veryGoodGovernment) {
-                msgId = "model.colony.veryGoodGovernment";
-                msgType = ModelMessage.MessageType.SONS_OF_LIBERTY;
-                number = veryGoodGovernment;
+        int rebelPercent = calculateSoLPercentage(unitCount, getLiberty());
+        int rebelCount = calculateRebels(unitCount, rebelPercent);
+        int loyalistCount = unitCount - rebelCount;
+
+        int result = 0;
+        if (rebelPercent >= veryGoodGovernment) { // There are no tories left.
+            if (sonsOfLiberty < veryGoodGovernment) {
+                result = 1;
             }
-        } else if (sonsOfLiberty >= goodGovernment) {
-            if (oldSonsOfLiberty == veryGoodGovernment) {
-                msgId = "model.colony.lostVeryGoodGovernment";
-                msgType = ModelMessage.MessageType.SONS_OF_LIBERTY;
-                number = veryGoodGovernment;
-            } else if (oldSonsOfLiberty < goodGovernment) {
-                msgId = "model.colony.goodGovernment";
-                msgType = ModelMessage.MessageType.SONS_OF_LIBERTY;
-                number = goodGovernment;
+        } else if (rebelPercent >= goodGovernment) {
+            if (sonsOfLiberty >= veryGoodGovernment) {
+                result = -1;
+            } else if (sonsOfLiberty < goodGovernment) {
+                result = 1;
             }
         } else {
-            if (oldSonsOfLiberty >= goodGovernment) {
-                msgId = "model.colony.lostGoodGovernment";
-                msgType = ModelMessage.MessageType.SONS_OF_LIBERTY;
-                number = goodGovernment;
-            }
-
-            // Now that no bonus is applied, penalties may.
-            if (tories > veryBadGovernment) {
-                if (oldTories <= veryBadGovernment) {
-                    // government has become very bad
-                    msgId = "model.colony.veryBadGovernment";
+            if (sonsOfLiberty >= goodGovernment) {
+                result = -1;
+            } else { // Now that no bonus is applied, penalties may.
+                if (loyalistCount > veryBadGovernment) {
+                    if (tories <= veryBadGovernment) {
+                        result = -1;
+                    }
+                } else if (loyalistCount > badGovernment) {
+                    if (tories <= badGovernment) {
+                        result = -1;
+                    } else if (tories > veryBadGovernment) {
+                        result = 1;
+                    }
+                } else {
+                    if (tories > badGovernment) {
+                        result = 1;
+                    }
                 }
-            } else if (tories > badGovernment) {
-                if (oldTories <= badGovernment) {
-                    // government has become bad
-                    msgId = "model.colony.badGovernment";
-                } else if (oldTories > veryBadGovernment) {
-                    // government has improved, but is still bad
-                    msgId = "model.colony.governmentImproved1";
-                }
-            } else if (oldTories > badGovernment) {
-                // government was bad, but has improved
-                msgId = "model.colony.governmentImproved2";
             }
         }
+        return result;
+    }
 
+    public ModelMessage checkForGovMgtChangeMessage() {
+        return evaluateSonsOfLibertyChange() != null
+                ? evaluateSonsOfLibertyChange()
+                : evaluateToriesGovernmentChange();
+    }
+
+    private ModelMessage evaluateSonsOfLibertyChange() {
+        int veryGoodGovernment = getSpecification().getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
+        int goodGovernment = getSpecification().getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
+
+        if (sonsOfLiberty >= veryGoodGovernment) {
+            return getMessageIdForSonsOfLiberty("model.colony.veryGoodGovernment", ModelMessage.MessageType.SONS_OF_LIBERTY, veryGoodGovernment);
+        } else if (sonsOfLiberty >= goodGovernment) {
+            return getMessageIdForSonsOfLiberty("model.colony.lostVeryGoodGovernment", ModelMessage.MessageType.SONS_OF_LIBERTY, veryGoodGovernment);
+        } else {
+            return null;
+        }
+    }
+
+    private ModelMessage evaluateToriesGovernmentChange() {
+        int veryBadGovernment = getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
+        int badGovernment = getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
+        
+        if (tories > veryBadGovernment) {
+            return getMessageIdForToriesGovernmentChange("model.colony.veryBadGovernment");
+        } else if (tories > badGovernment) {
+            return getMessageIdForToriesGovernmentChange("model.colony.badGovernment", "model.colony.governmentImproved1");
+        } else {
+            return getMessageIdForToriesGovernmentChange("model.colony.governmentImproved2");
+        }
+    }
+
+    private ModelMessage getMessageIdForSonsOfLiberty(String msgId, ModelMessage.MessageType msgType, int number) {
+        return (oldSonsOfLiberty < getSpecification().getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT))
+                ? createModelMessage(msgId, msgType, number)
+                : null;
+    }
+
+    private ModelMessage getMessageIdForToriesGovernmentChange(String... msgIds) {
+        for (String msgId : msgIds) {
+            if ((tories > getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT) && oldTories <= getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT))
+                || (tories > getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT) && oldTories <= getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT))
+                || (oldTories > getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT) && tories <= getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT))) {
+                return createModelMessage(msgId, ModelMessage.MessageType.GOVERNMENT_EFFICIENCY, 0);
+            }
+        }
+        return null;
+    }
+
+    private ModelMessage createModelMessage(String msgId, ModelMessage.MessageType msgType, int number) {
         GoodsType bells = getSpecification().getGoodsType("model.goods.bells");
-        return (msgId == null) ? null
-            : new ModelMessage(msgType, msgId, this, bells)
-            .addName("%colony%", getName())
-            .addAmount("%number%", number);
+        return new ModelMessage(msgType, msgId, this, bells)
+                .addName("%colony%", getName())
+                .addAmount("%number%", number);
+    }
+    
+    private String handleGoodGovernment(int veryGoodGovernment, int goodGovernment) {
+        if (oldSonsOfLiberty == veryGoodGovernment) {
+            return setValuesAndReturn("model.colony.lostVeryGoodGovernment", veryGoodGovernment);
+        } else if (oldSonsOfLiberty < goodGovernment) {
+            return setValuesAndReturn("model.colony.goodGovernment", goodGovernment);
+        }
+        return null;
+    }
+    
+    private String handleGovernmentPenalties(int veryBadGovernment, int badGovernment, int veryGoodGovernment, int oldTories) {
+        if (tories > veryBadGovernment) {
+            if (oldTories <= veryBadGovernment) {
+                return "model.colony.veryBadGovernment";
+            }
+        } else if (tories > badGovernment) {
+            if (oldTories <= badGovernment) {
+                return "model.colony.badGovernment";
+            } else if (oldTories > veryBadGovernment) {
+                return "model.colony.governmentImproved1";
+            }
+        } else if (oldTories > badGovernment) {
+            return "model.colony.governmentImproved2";
+        }
+        return null;
+    }
+    
+    private String setValuesAndReturn(String messageId, int value) {
+        int number = value;
+        return messageId;
     }
 
     /**
