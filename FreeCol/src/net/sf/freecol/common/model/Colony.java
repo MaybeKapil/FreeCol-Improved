@@ -1445,36 +1445,59 @@ private NoBuildReason checkUnitType(BuildableType buildableType, List<BuildableT
     }
 
     public ModelMessage checkForGovMgtChangeMessage() {
-        final Specification spec = getSpecification();
-        final int veryBadGovernment = spec.getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
-        final int badGovernment = spec.getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
-        final int veryGoodGovernment = spec.getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
-        final int goodGovernment = spec.getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
-    
-        String msgId = null;
-        int number = 0;
-        ModelMessage.MessageType msgType = ModelMessage.MessageType.GOVERNMENT_EFFICIENCY;
-    
-        if (sonsOfLiberty >= veryGoodGovernment) {
-            msgId = handleVeryGoodGovernment(veryGoodGovernment);
-        } else if (sonsOfLiberty >= goodGovernment) {
-            msgId = handleGoodGovernment(veryGoodGovernment, goodGovernment);
-        } else {
-            msgId = handleGovernmentPenalties(veryBadGovernment, badGovernment, veryGoodGovernment, oldTories);
-        }
-    
-        GoodsType bells = getSpecification().getGoodsType("model.goods.bells");
-        return (msgId == null) ? null
-            : new ModelMessage(msgType, msgId, this, bells)
-            .addName("%colony%", getName())
-            .addAmount("%number%", number);
+        return evaluateSonsOfLibertyChange() != null
+                ? evaluateSonsOfLibertyChange()
+                : evaluateToriesGovernmentChange();
     }
-    
-    private String handleVeryGoodGovernment(int veryGoodGovernment) {
-        if (oldSonsOfLiberty < veryGoodGovernment) {
-            return setValuesAndReturn("model.colony.veryGoodGovernment", veryGoodGovernment);
+
+    private ModelMessage evaluateSonsOfLibertyChange() {
+        int veryGoodGovernment = getSpecification().getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT);
+        int goodGovernment = getSpecification().getInteger(GameOptions.GOOD_GOVERNMENT_LIMIT);
+
+        if (sonsOfLiberty >= veryGoodGovernment) {
+            return getMessageIdForSonsOfLiberty("model.colony.veryGoodGovernment", ModelMessage.MessageType.SONS_OF_LIBERTY, veryGoodGovernment);
+        } else if (sonsOfLiberty >= goodGovernment) {
+            return getMessageIdForSonsOfLiberty("model.colony.lostVeryGoodGovernment", ModelMessage.MessageType.SONS_OF_LIBERTY, veryGoodGovernment);
+        } else {
+            return null;
+        }
+    }
+
+    private ModelMessage evaluateToriesGovernmentChange() {
+        int veryBadGovernment = getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT);
+        int badGovernment = getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT);
+        
+        if (tories > veryBadGovernment) {
+            return getMessageIdForToriesGovernmentChange("model.colony.veryBadGovernment");
+        } else if (tories > badGovernment) {
+            return getMessageIdForToriesGovernmentChange("model.colony.badGovernment", "model.colony.governmentImproved1");
+        } else {
+            return getMessageIdForToriesGovernmentChange("model.colony.governmentImproved2");
+        }
+    }
+
+    private ModelMessage getMessageIdForSonsOfLiberty(String msgId, ModelMessage.MessageType msgType, int number) {
+        return (oldSonsOfLiberty < getSpecification().getInteger(GameOptions.VERY_GOOD_GOVERNMENT_LIMIT))
+                ? createModelMessage(msgId, msgType, number)
+                : null;
+    }
+
+    private ModelMessage getMessageIdForToriesGovernmentChange(String... msgIds) {
+        for (String msgId : msgIds) {
+            if ((tories > getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT) && oldTories <= getSpecification().getInteger(GameOptions.VERY_BAD_GOVERNMENT_LIMIT))
+                || (tories > getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT) && oldTories <= getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT))
+                || (oldTories > getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT) && tories <= getSpecification().getInteger(GameOptions.BAD_GOVERNMENT_LIMIT))) {
+                return createModelMessage(msgId, ModelMessage.MessageType.GOVERNMENT_EFFICIENCY, 0);
+            }
         }
         return null;
+    }
+
+    private ModelMessage createModelMessage(String msgId, ModelMessage.MessageType msgType, int number) {
+        GoodsType bells = getSpecification().getGoodsType("model.goods.bells");
+        return new ModelMessage(msgType, msgId, this, bells)
+                .addName("%colony%", getName())
+                .addAmount("%number%", number);
     }
     
     private String handleGoodGovernment(int veryGoodGovernment, int goodGovernment) {
