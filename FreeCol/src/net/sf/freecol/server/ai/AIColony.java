@@ -1452,34 +1452,45 @@ public class AIColony extends AIObject implements PropertyChangeListener {
     @Override
     public void propertyChange(PropertyChangeEvent event) {
         logger.finest("Property change REARRANGE_WORKERS fired.");
-        requestRearrange();
+        handleRearrangeEvent();
 
-        // Check for goods party!
-        if (event != null 
-            && event.getOldValue() instanceof GoodsType) {
-            GoodsType goodsType = (GoodsType)event.getOldValue();
+        handleGoodsTypeChangeEvent(event);
+    }
+
+    private void handleRearrangeEvent() {
+        requestRearrange();
+    }
+
+    private void handleGoodsTypeChangeEvent(PropertyChangeEvent event) {
+        if (event != null && event.getOldValue() instanceof GoodsType) {
+            GoodsType goodsType = (GoodsType) event.getOldValue();
             int left = colony.getGoodsCount(goodsType);
+
             for (AIGoods aig : getExportGoods()) {
-                boolean remove = false;
-                if (aig.isDisposed()) {
-                    remove = true;
-                } else if (aig.getGoods() == null) {
-                    aig.changeTransport(null);
-                    remove = true;
-                } else if (aig.getGoodsType() == goodsType) {
-                    if (left > 0) {
-                        aig.getGoods().setAmount(left);
-                    } else {
-                        aig.changeTransport(null);
-                        remove = true;
-                    }
-                }
+                boolean remove = shouldRemoveAIGoods(aig, goodsType, left);
                 if (remove) {
                     removeExportGoods(aig);
                     break;
                 }
             }
         }
+    }
+
+    private boolean shouldRemoveAIGoods(AIGoods aig, GoodsType goodsType, int left) {
+        if (aig.isDisposed()) {
+            return true;
+        } else if (aig.getGoods() == null) {
+            aig.changeTransport(null);
+            return true;
+        } else if (aig.getGoodsType() == goodsType) {
+            if (left > 0) {
+                aig.getGoods().setAmount(left);
+            } else {
+                aig.changeTransport(null);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
