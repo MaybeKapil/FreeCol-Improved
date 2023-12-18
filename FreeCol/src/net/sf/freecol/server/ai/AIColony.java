@@ -679,26 +679,56 @@ public class AIColony extends AIObject implements PropertyChangeListener {
         LogBuilder lb = new LogBuilder(64);
         lb.add("Colony ", colony.getName(), " rearrangement leaves no units, ",
             colony.getTile().getUnitCount(), " available:");
-        for (Unit u : colony.getTile().getUnitList()) lb.add(" ", u);
-        List<GoodsType> libertyGoods = getSpecification()
-            .getLibertyGoodsTypeList();
-        out: for (Unit u : colony.getTile().getUnitList()) {
-            if (!u.isPerson()) continue;
-            for (WorkLocation wl : colony.getAvailableWorkLocations()) {
-                if (!wl.canAdd(u)) continue;
-                for (GoodsType type : libertyGoods) {
-                    if (wl.getPotentialProduction(type, u.getType()) > 0
-                        && AIMessage.askWork(getAIUnit(u), wl)
-                        && u.getLocation() == wl) {
-                        AIMessage.askChangeWorkType(getAIUnit(u), type);
-                        lb.add(", averts destruction with ", u);
-                        break out;
-                    }
-                }
+        logAutoDestructionDetails(lb);
+
+        if (tryToAvertDestruction(lb)) {
+            lb.log(logger, Level.WARNING);
+            return colony.getUnitCount() > 0;
+        } else {
+            return false;
+        }
+    }
+
+    private void logAutoDestructionDetails(LogBuilder lb) {
+        for (Unit u : colony.getTile().getUnitList()) {
+            lb.add(" ", u);
+        }
+    }
+
+    private boolean tryToAvertDestruction(LogBuilder lb) {
+        List<GoodsType> libertyGoods = getSpecification().getLibertyGoodsTypeList();
+
+        for (Unit u : colony.getTile().getUnitList()) {
+            if (u.isPerson() && tryLibertyGoodsAssignment(u, lb)) {
+                return true;
             }
         }
-        lb.log(logger, Level.WARNING);
-        return colony.getUnitCount() > 0;
+
+        return false;
+    }
+
+    private boolean tryLibertyGoodsAssignment(Unit u, LogBuilder lb) {
+        for (WorkLocation wl : colony.getAvailableWorkLocations()) {
+            if (wl.canAdd(u) && assignLibertyGoods(u, wl, lb)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean assignLibertyGoods(Unit u, WorkLocation wl, LogBuilder lb) {
+        List<GoodsType> libertyGoods = getSpecification().getLibertyGoodsTypeList();
+
+        for (GoodsType type : libertyGoods) {
+            if (wl.getPotentialProduction(type, u.getType()) > 0
+                && AIMessage.askWork(getAIUnit(u), wl)
+                && u.getLocation() == wl) {
+                AIMessage.askChangeWorkType(getAIUnit(u), type);
+                lb.add(", averts destruction with ", u);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
